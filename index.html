@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+	<meta charset="UTF-8">
+	<title>可调整大小的侧边栏 + 图片选择栏 + Canvas</title>
+	<!-- 引入 Bootstrap -->
+	<link href="./assets/css/bootstrap.min.css" rel="stylesheet">
+
+	<style>
+		body,
+		html {
+			height: 100%;
+			margin: 0;
+		}
+
+		.container-fluid {
+			height: 100%;
+			width: 100%;
+			display: flex;
+			overflow: hidden;
+			padding: 0;
+		}
+
+		.resizable-sidebar {
+			width: 250px;
+			min-width: 150px;
+			max-width: 500px;
+			background-color: #f8f9fa;
+			padding: 15px;
+			overflow: auto;
+		}
+
+		.resizer {
+			width: 5px;
+			background-color: #ddd;
+			cursor: ew-resize;
+			position: relative;
+		}
+
+		.content {
+			flex: 1;
+			display: flex;
+			flex-direction: column;
+			background-color: #ffffff;
+			overflow: hidden;
+		}
+
+		.image-list-bar {
+			flex: 0 0 auto;
+			overflow-x: auto;
+			white-space: nowrap;
+			border-bottom: 1px solid #ccc;
+			padding: 10px;
+			background-color: #f1f1f1;
+		}
+
+		.image-item {
+			display: inline-block;
+			text-align: center;
+			margin-right: 10px;
+			cursor: pointer;
+			border: 2px solid transparent;
+			border-radius: 5px;
+			padding: 5px;
+			transition: border-color 0.2s;
+		}
+
+		.image-item img {
+			max-height: 80px;
+			height: auto;
+			max-width: 120px;
+			object-fit: contain;
+			display: block;
+			margin: 0 auto;
+		}
+
+		.image-item.selected {
+			border-color: #007bff;
+			background-color: #e6f0ff;
+		}
+
+		.main-content {
+			flex: 1;
+			padding: 15px;
+			position: relative;
+			/* 关键：为 canvas 提供参考 */
+		}
+
+		/* 设置 Canvas 填充整个主区域 */
+		#myCanvas {
+			position: absolute;
+			/* 使 Canvas 覆盖整个父元素 */
+			top: 0;
+			left: 0;
+			width: 100%;
+			/* 填充父容器宽度 */
+			height: 100%;
+			/* 填充父容器高度 */
+		}
+	</style>
+</head>
+
+<body>
+
+	<div class="container-fluid">
+		<div class="resizable-sidebar" id="sidebar">
+			<h5>侧边栏</h5>
+			<p>这里是左边的内容。</p>
+		</div>
+		<div class="resizer" id="resizer"></div>
+
+		<div class="content">
+			<!-- 图片列表栏 -->
+			<div class="image-list-bar" id="imageList">
+				<!-- 示例图片项 -->
+				<div class="image-item" data-name="图片1">
+					<img src="https://via.placeholder.com/120x80?text=1" alt="图片1">
+					<div>图片1</div>
+				</div>
+				<div class="image-item" data-name="图片2">
+					<img src="https://via.placeholder.com/120x80?text=2" alt="图片2">
+					<div>图片2</div>
+				</div>
+				<div class="image-item" data-name="图片3">
+					<img src="https://via.placeholder.com/120x80?text=3" alt="图片3">
+					<div>图片3</div>
+				</div>
+				<div class="image-item" data-name="图片4">
+					<img src="https://via.placeholder.com/120x80?text=4" alt="图片4">
+					<div>图片4</div>
+				</div>
+				<!-- 可继续添加更多项 -->
+			</div>
+
+			<!-- 主内容区域 -->
+			<div class="main-content">
+				<!-- Canvas 元素 -->
+				<!-- <canvas id="myCanvas"></canvas> -->
+				 <div id="myCanvas">
+					Hello
+				 </div>
+
+				<!-- <h3>主内容区域</h3>
+				<p>这是页面的右侧部分。</p> -->
+			</div>
+		</div>
+	</div>
+
+	<!-- JavaScript -->
+	<script>
+		// 侧边栏拖动逻辑
+		const resizer = document.getElementById('resizer');
+		const sidebar = document.getElementById('sidebar');
+
+		let x = 0;
+		let sidebarWidth = 0;
+
+		const onMouseDown = (e) => {
+			x = e.clientX;
+			sidebarWidth = sidebar.offsetWidth;
+
+			document.addEventListener('mousemove', onMouseMove);
+			document.addEventListener('mouseup', onMouseUp);
+		};
+
+		const onMouseMove = (e) => {
+			const dx = e.clientX - x;
+			const newWidth = sidebarWidth + dx;
+
+			if (newWidth >= 150 && newWidth <= 500) {
+				sidebar.style.width = `${newWidth}px`;
+			}
+		};
+
+		const onMouseUp = () => {
+			document.removeEventListener('mousemove', onMouseMove);
+			document.removeEventListener('mouseup', onMouseUp);
+		};
+
+		resizer.addEventListener('mousedown', onMouseDown);
+
+		// 图片选择逻辑
+		const imageItems = document.querySelectorAll('.image-item');
+		imageItems.forEach(item => {
+			item.addEventListener('click', () => {
+				imageItems.forEach(i => i.classList.remove('selected'));
+				item.classList.add('selected');
+			});
+		});
+
+		// 设置 Canvas 动态大小
+		const canvas = document.getElementById('myCanvas');
+		const ctx = canvas.getContext('2d');
+
+		// 当页面大小改变时，重新设置 Canvas 尺寸
+		window.addEventListener('resize', () => {
+			canvas.width = canvas.parentElement.clientWidth;
+			canvas.height = canvas.parentElement.clientHeight;
+
+			// 绘制一个简单的背景色
+			ctx.fillStyle = 'lightblue';
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+		});
+
+		// 初始加载时设置 Canvas 大小
+		canvas.width = canvas.parentElement.clientWidth;
+		canvas.height = canvas.parentElement.clientHeight;
+
+		// 绘制一个简单的背景色
+		ctx.fillStyle = 'lightblue';
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+	</script>
+
+</body>
+
+</html>
