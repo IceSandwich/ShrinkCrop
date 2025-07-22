@@ -4,6 +4,9 @@ const props = defineProps({
 	disableHandler: Boolean,
 	vertical: Boolean
 })
+const emits = defineEmits<{
+	onPanelResize: [],
+}>();
 
 const getFlexDirection = computed(() => {
 	return props.vertical ? 'column' : 'row';
@@ -23,6 +26,7 @@ function onResizerMouseDown(e: MouseEvent) {
 function onResizerMouseMove(e: MouseEvent) {
 	const delta = e.clientX - dragStart;
 	sidebarWidth.value = Math.min(Math.max(oldSidebarWidth + delta, 150), 800);
+	emits('onPanelResize');
 }
 
 function onResizerMouseUp(e: MouseEvent) {

@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { useTemplateRef } from 'vue';
+import { onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
 
 interface ImageItem {
 	src: string;
 	title: string;
 }
-defineProps<{
+const props = defineProps<{
 	items: ImageItem[]
 }>()
 const emits = defineEmits<{
@@ -13,7 +13,7 @@ const emits = defineEmits<{
 }>();
 const imageItems = useTemplateRef("imageItems");
 
-let oldid = -1;
+let curid = ref(-1);
 function onClick(e: MouseEvent) {
 	e.preventDefault();
 
@@ -22,24 +22,44 @@ function onClick(e: MouseEvent) {
 	if (!idstr) return;
 	let id = parseInt(idstr);
 
-	imageItems.value?.forEach((i, idx) => {
-		if (idx === id) {
-			i.classList.add('selected');
-		} else {
-			i.classList.remove('selected');
-		}
-	});
-
-	if (id!== oldid) {
-		oldid = id;
+	if (id!== curid.value) {
+		curid.value = id;
 		emits('change', id);
 	}
 }
+
+function clamp(v: number, min: number = -Infinity, max: number = Infinity) {
+	return Math.max(Math.min(v, max), min);
+}
+
+function onArrowKey(e: KeyboardEvent) {
+	if (curid.value === -1) return;
+	if (e.key !== 'ArrowLeft' && e.key!== 'ArrowRight') return;
+
+	let newid = -1;
+	if (e.key === 'ArrowLeft') {
+		newid = clamp(curid.value - 1, 0, props.items.length - 1);
+	} else if (e.key === 'ArrowRight') {
+		newid = clamp(curid.value + 1, 0, props.items.length - 1);
+	}
+	if (newid!== curid.value) {
+		curid.value  = newid;
+		emits('change', curid.value);
+	}
+}
+
+onMounted(() => {
+	document.addEventListener("keyup", onArrowKey);
+})
+
+onUnmounted(() => {
+	document.removeEventListener("keyup", onArrowKey);
+});
 </script>
 
 <template>
 	<div class="image-list-bar" id="imageList">
-		<div class="image-item" :data-id="index" v-for="item, index in items" @click="onClick" ref="imageItems">
+		<div class="image-item" :data-id="index" v-for="item, index in items" @click="onClick" ref="imageItems" :class="{ selected: index === curid }">
 			<img :src="item.src">
 			<div>{{ item.title }}</div>
 		</div>

@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, type Ref } from 'vue';
+import { onUpdated, ref, useTemplateRef, type Ref } from 'vue';
 import ImageList from './components/ImageList.vue';
 import SplitView from './components/SplitView.vue';
 import Sidebar from './components/Sidebar.vue';
+import { Cropper } from 'vue-advanced-cropper';
+import 'vue-advanced-cropper/dist/style.css';
 
 interface Image {
 	src: string;
@@ -12,9 +14,10 @@ interface Image {
 }
 
 let images = ref<Image[]>([]);
-
+let selectedIndex = ref(-1);
 function onImageChange(index: number) {
 	console.log('图片改变', images.value[index]);
+	selectedIndex.value = index;
 }
 
 function onAddImage(files: File[]) {
@@ -36,10 +39,20 @@ function onAddImage(files: File[]) {
 		reader.readAsDataURL(file);
 	});
 }
+
+const mainCropper = useTemplateRef("mainCropper");
+function onCropperChange() {
+
+}
+
+function onPanelResize() {
+	mainCropper.value?.refresh();
+}
+
 </script>
 
 <template>
-	<SplitView>
+	<SplitView @on-panel-resize="onPanelResize">
 		<template v-slot:sidebar>
 			<Sidebar @onAddImage="onAddImage" />
 		</template>
@@ -48,10 +61,10 @@ function onAddImage(files: File[]) {
 				<template v-slot:sidebar>
 					<ImageList :items="images" @change="onImageChange" />
 				</template>
-				<template v-slot:content>
-					<h2>内容</h2>
-					<p>这里是右边的内容。</p>
-
+				<template v-slot:content v-if="selectedIndex !== -1">
+					<cropper class="cropper" :src="images[selectedIndex].src" :stencil-props="{
+						// aspectRatio: 1
+					}" @change="onCropperChange" ref="mainCropper" />
 				</template>
 			</SplitView>
 		</template>
@@ -60,4 +73,7 @@ function onAddImage(files: File[]) {
 </template>
 
 <style lang="css" scoped>
+.cropper {
+	margin: auto;
+}
 </style>
