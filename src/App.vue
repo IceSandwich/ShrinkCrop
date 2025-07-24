@@ -127,11 +127,15 @@ function onFileChanged(e: Event) {
 function onPanelResize() {
 	cropper.value?.refresh();
 }
+const customBucketForm = useTemplateRef("customBucketForm");
+function onBucketSelectChange(value: unknown) {
+	console.log("====== ", value);
+}
 </script>
 
 <template>
 	<VApp>
-		<SplitView @on-panel-resize="onPanelResize">
+		<SplitView @on-panel-resize="onPanelResize" panelbg-color="rgba(127, 127, 127, 0.5)">
 			<template v-slot:sidebar>
 				<VContainer>
 					<VRow class="mb-5">
@@ -174,7 +178,7 @@ function onPanelResize() {
 												<VListItemTitle v-text="item.width + 'x' + item.height + '(' + calculateAspectRatio(item.width, item.height) + ')'"></VListItemTitle>
 											</VListItem>
 										</VList> -->
-										<VRadioGroup>
+										<VRadioGroup @update:model-value="onBucketSelectChange">
 											<VRadio 
 												v-for="(item, i) in buckets" 
 												:value="i"
@@ -185,7 +189,16 @@ function onPanelResize() {
 													</div>
 												</template>
 											</VRadio>
-											<VRadio label="自定义"></VRadio>
+											<VRadio label="自定义" value="-1"></VRadio>
+											<VForm ref="customBucketForm">
+												<VContainer>
+													<VRow>
+														<VCol>
+
+														</VCol>
+													</VRow>
+												</VContainer>
+											</VForm>
 										</VRadioGroup>
 									</VRow>
 								</VExpansionPanelText>
@@ -200,12 +213,13 @@ function onPanelResize() {
 						<ImageList :items="images" @change="onImageChange"></ImageList>
 					</template>
 					<template v-slot:content v-if="selectedIndex !== -1">
-						<Cropper class="cropper" :src="images[selectedIndex].src" :stencil-props="{
-							// aspectRatio: 1
-						}" ref="cropper" 
-						@change="onCropperChange" 
-						:default-position="getCropperDefaultPosition"
-						:default-size="getCropperDefaultSize"
+						<Cropper class="cropper" :src="images[selectedIndex].src"
+							:stencil-props="{
+								// aspectRatio: 1
+							}" ref="cropper" 
+							@change="onCropperChange" 
+							:default-position="getCropperDefaultPosition"
+							:default-size="getCropperDefaultSize"
 						/>
 					</template>
 				</SplitView>

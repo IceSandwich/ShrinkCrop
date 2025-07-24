@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, type StyleValue } from 'vue';
 const props = defineProps({
 	disableHandler: Boolean,
-	vertical: Boolean
+	vertical: Boolean,
+	panelbgColor: String,
 })
 const emits = defineEmits<{
 	onPanelResize: [],
@@ -39,7 +40,7 @@ function onResizerMouseUp(e: MouseEvent) {
 <template>
 	<div class="container-fluid" :style="{ flexDirection: getFlexDirection }">
 		<div class="resizable-sidebar" id="sidebar"
-			:style="vertical ? { width: '100%' } : { width: sidebarWidth + 'px', height: '100%' }">
+			:style="vertical ? { width: '100%', 'background-color': props.panelbgColor } : { width: sidebarWidth + 'px', height: '100%', 'background-color': props.panelbgColor }">
 			<slot name="sidebar"></slot>
 		</div>
 
