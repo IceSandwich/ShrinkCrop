@@ -5,64 +5,26 @@ import ImageList from './components/ImageList.vue';
 import { Cropper, type CropperResult } from 'vue-advanced-cropper'
 import 'vue-advanced-cropper/dist/style.css';
 
+interface Rect{
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+interface Bucket {
+	widthRatio: number;
+	heightRatio: number;
+}
 interface Image {
 	src: string;
 	title: string;
 	width: number;
 	height: number;
-	hasCrop: boolean;
-	cropX: number;
-	cropY: number;
-	cropWidth: number;
-	cropHeight: number;
+	crop: Rect | null;
+	ratio: Bucket | null;
 }
 
-const images = ref<Image[]>([]);
-const cropper = useTemplateRef("cropper");
-
-let selectedIndex = ref(-1);
-function onImageChange(index: number) {
-	console.log('图片改变', images.value[index]);
-	if (selectedIndex.value !== -1) {
-		const cropRect = cropper.value!.getResult();
-		images.value[selectedIndex.value].hasCrop = true;
-		images.value[selectedIndex.value].cropX = cropRect.coordinates.left;
-		images.value[selectedIndex.value].cropY = cropRect.coordinates.top;
-		images.value[selectedIndex.value].cropWidth = cropRect.coordinates.width;
-		images.value[selectedIndex.value].cropHeight = cropRect.coordinates.height;
-	}
-	selectedIndex.value = index;
-}
-function onCropperChange(options: CropperResult) {
-	// images.value[selectedIndex.value].cropX = options.coordinates.left;
-	// images.value[selectedIndex.value].cropY = options.coordinates.top;
-	// images.value[selectedIndex.value].cropWidth  = options.coordinates.width;
-	// images.value[selectedIndex.value].cropHeight  = options.coordinates.height;
-}
-function getCropperDefaultPosition() {
-	const item = images.value[selectedIndex.value];
-	return {
-		left: item.cropX,
-		top: item.cropY,
-	};
-}
-function getCropperDefaultSize() {
-	const item = images.value[selectedIndex.value];
-	return {
-		width: item.cropWidth,
-		height: item.cropHeight
-	};
-}
-const computeBuckets = computed(() => {
-	return Array.from(new Set(images.value.filter(item => item.hasCrop).map(item => JSON.stringify({
-		width: item.cropWidth,
-		height: item.cropHeight,
-	})))).map(item => JSON.parse(item)) as {
-		width: number,
-		height: number
-	}[];
-});
-function calculateAspectRatio(width: number, height: number) {
+function calculateAspectRatio(width: number, height: number): Bucket {
     // 计算最大公约数 (GCD)
     const gcd = function (a: number, b: number): number {
         return b === 0 ? a : gcd(b, a % b);
@@ -72,7 +34,72 @@ function calculateAspectRatio(width: number, height: number) {
     const aspectRatioWidth = width / greatestCommonDivisor;
     const aspectRatioHeight = height / greatestCommonDivisor;
 
-    return `${aspectRatioWidth}:${aspectRatioHeight}`;
+    return {
+		widthRatio: aspectRatioWidth,
+		heightRatio: aspectRatioHeight
+	}
+}
+
+const images = ref<Image[]>([]);
+const buckets = ref<Bucket[]>([]);
+const cropper = useTemplateRef("cropper");
+
+let selectedIndex = ref(-1);
+let displayCrop = ref<Rect>({ x:0, y:0, width:160, height:90 });
+function onImageChange(index: number) {
+	if (selectedIndex.value !== -1) {
+		// update crop coordinates
+		const cropRect = cropper.value!.getResult();
+		images.value[selectedIndex.value].crop = {
+			x: cropRect.coordinates.left,
+			y: cropRect.coordinates.top,
+			width: cropRect.coordinates.width,
+			height: cropRect.coordinates.height,
+		} 
+
+		// update buckets
+		buckets.value = Array.from(new Set(images.value.filter(item => item.crop).map(item => JSON.stringify({
+			widthRatio: item.crop!.width,
+			heightRatio: item.crop!.height,
+		})))).map(item => JSON.parse(item));
+	}
+	selectedIndex.value = index;
+}
+function onCropperChange(options: CropperResult) {
+	displayCrop.value = {
+		x: options.coordinates.left,
+		y: options.coordinates.top,
+		width: options.coordinates.width,
+		height: options.coordinates.height,
+	}
+}
+
+const kDefaultRatio = 0.8;
+function getCropperDefaultPosition() {
+	const item = images.value[selectedIndex.value];
+	if (!item.crop) {
+		return {
+			left: (item.width - item.width * kDefaultRatio) / 2,
+			top: (item.height - item.height * kDefaultRatio) / 2,
+		}
+	}
+	return {
+		left: item.crop.x,
+		top: item.crop.y,
+	};
+}
+function getCropperDefaultSize() {
+	const item = images.value[selectedIndex.value];
+	if (!item.crop) {
+		return {
+			width: item.width * kDefaultRatio,
+			height: item.height * kDefaultRatio,
+		}
+	}
+	return {
+		width: item.crop.width,
+		height: item.crop.height
+	};
 }
 
 function onFileChanged(e: Event) {
@@ -82,21 +109,13 @@ function onFileChanged(e: Event) {
 		reader.onload = () => {
 			const img = new Image();
 			img.onload = function () {
-				const cropRatio = 0.8;
-				const cropWidth = Math.floor(img.naturalWidth * cropRatio);
-				const cropHeight = Math.floor(img.naturalHeight * cropRatio);
-				const cropX = Math.floor(img.naturalWidth / 2 - cropWidth / 2);
-				const cropY = Math.floor(img.naturalHeight / 2 - cropHeight / 2);
 				const append = {
 					src: reader.result as string,
 					title: file.name,
 					width: img.naturalWidth,
 					height: img.naturalHeight,
-					hasCrop: false,
-					cropX: cropX,
-					cropY: cropY,
-					cropWidth: cropWidth,
-					cropHeight: cropHeight,
+					crop: null,
+					ratio: null,
 				};
 				images.value = [...images.value, append];
 			}
@@ -133,10 +152,10 @@ function onPanelResize() {
 											}}</span>
 									</VRow>
 									<VRow>
-										裁剪坐标：<span>{{  images[selectedIndex].cropX }}, {{  images[selectedIndex].cropY }}</span>
+										裁剪坐标：<span>{{  displayCrop.x }}, {{  displayCrop.y }}</span>
 									</VRow>
 									<VRow>
-										裁剪大小：<span>{{  images[selectedIndex].cropWidth  }} x {{  images[selectedIndex].cropHeight }}</span>
+										裁剪大小：<span>{{  displayCrop.width  }} x {{  displayCrop.height }}</span>
 									</VRow>
 								</VExpansionPanelText>
 							</VExpansionPanel>
@@ -157,12 +176,12 @@ function onPanelResize() {
 										</VList> -->
 										<VRadioGroup>
 											<VRadio 
-												v-for="(item, i) in computeBuckets" 
+												v-for="(item, i) in buckets" 
 												:value="i"
 											>
 												<template v-slot:label>
 													<div>
-														{{ item.width }} x {{ item.height }} ( {{ calculateAspectRatio(item.width, item.height) }} )
+														{{ item.widthRatio }} : {{ item.heightRatio }}
 													</div>
 												</template>
 											</VRadio>
