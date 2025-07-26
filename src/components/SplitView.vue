@@ -39,9 +39,11 @@ function onResizerMouseUp(e: MouseEvent) {
 
 <template>
 	<div class="container-fluid" :style="{ flexDirection: getFlexDirection }">
-		<div class="resizable-sidebar" id="sidebar"
-			:style="vertical ? { width: '100%', 'background-color': props.panelbgColor } : { width: sidebarWidth + 'px', height: '100%', 'background-color': props.panelbgColor }">
-			<slot name="sidebar"></slot>
+		<div :style="!vertical ? { overflowY: 'unset', height: '100%' } : {}">
+			<div class="resizable-sidebar" id="sidebar"
+				:style="vertical ? { width: '100%', 'background-color': props.panelbgColor } : { width: sidebarWidth + 'px', height: '100%', 'background-color': props.panelbgColor,  }">
+				<slot name="sidebar"></slot>
+			</div>
 		</div>
 
 		<div class="resizer" :class="vertical ? 'resizer-vertical' : 'resizer-horizontal'" id="resizer"
