@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue';
 import SplitView from './components/SplitView.vue';
 import ImageList from './components/ImageList.vue';
-import { Cropper, type CropperResult, Preview } from 'vue-advanced-cropper'
+import { Cropper, type CropperResult } from 'vue-advanced-cropper'
 import 'vue-advanced-cropper/dist/style.css';
 import JSZip from 'jszip';
 
@@ -21,14 +21,10 @@ interface Image {
 	title: string;
 	width: number;
 	height: number;
-	crop: Rect | null;
-	ratio: Size | null;
-	resize: Size | null;
+	crop: Rect;
+	bucket: number;
 }
-interface Bucket {
-	ratio: Size;
-	sizes: Size[];
-}
+type Bucket = Size;
 
 function calculateAspectRatio(width: number, height: number): Size {
     // 计算最大公约数 (GCD)
@@ -45,98 +41,44 @@ function calculateAspectRatio(width: number, height: number): Size {
 		height: aspectRatioHeight
 	}
 }
+function calculateDefaultCrop(size: Size, ratio: number = 0.8): Rect {
+	const cropWidth = Math.floor(size.width * ratio);
+	const cropHeight = Math.floor(size.height * ratio);
+	const cropX = Math.floor((size.width - cropWidth)/2);
+	const cropY = Math.floor((size.height - cropHeight)/2);
+	return { x: cropX, y: cropY, width: cropWidth, height: cropHeight };
+}
 
 const images = ref<Image[]>([]);
 const buckets = ref<Bucket[]>([]);
 const cropper = useTemplateRef("cropper");
-const bucketRatioRadio = ref(-1);
-const bucketResolution = ref(-1);
-const currentRatio = ref<Size | null>(null);
+const bucketRadio = ref(-1);
+// const currentRatio = ref<Size | null>(null);
 const showPreview = ref<string | null>(null);
 
 let selectedIndex = ref(-1);
 let displayCrop = ref<Rect>({ x:0, y:0, width:160, height:90 });
 function updateCropCoordinates() {
 	if (selectedIndex.value == -1) return false;
-	if (!cropper.value) return false;
 
-	const cropRect = cropper.value.getResult();
+	const cropRect = cropper.value!.getResult();
 	images.value[selectedIndex.value].crop = {
 		x: cropRect.coordinates.left,
 		y: cropRect.coordinates.top,
 		width: cropRect.coordinates.width,
 		height: cropRect.coordinates.height,
 	}
-
-	if (bucketRatioRadio.value != -1) {
-		if (bucketResolution.value == -1) {
-			images.value[selectedIndex.value].resize = null;
-		} else {
-			images.value[selectedIndex.value].resize = buckets.value[bucketRatioRadio.value].sizes[bucketResolution.value];
-		}
-	}
 }
 function onImageChange(index: number) {
 	if (selectedIndex.value !== -1) {
 		updateCropCoordinates();
-		if (bucketRatioRadio.value != -1) {
-			const ratio = buckets.value[bucketRatioRadio.value].ratio;
-			images.value[selectedIndex.value].ratio = ratio;
-			images.value[selectedIndex.value].crop!.width = Math.floor(ratio.width / ratio.height * images.value[selectedIndex.value].crop!.height);
-		} else {
-			const cropRect = images.value[selectedIndex.value].crop!;
-			images.value[selectedIndex.value].ratio = calculateAspectRatio(cropRect.width, cropRect.height);
-		}
-
-		// update buckets
-		const newbuckets: Bucket[] = [];
-		for (var i = 0; i < images.value.length; ++i) {
-			if (!images.value[i].crop) continue;
-
-			let findIndex = newbuckets.findIndex(v => v.ratio == images.value[i].ratio!);
-			if (findIndex == -1) {
-				newbuckets.push({
-					ratio: images.value[i].ratio!,
-					sizes: [],
-				})
-				findIndex = newbuckets.length - 1;
-			}
-
-			// if (images.value[i].resize != null) {
-				
-			// }
-			// const newSize: Size = {
-			// 	width: images.value[i].crop!.width,
-			// 	height: images.value[i].crop!.height,
-			// }
-			// if (findIndex == -1) {
-			// 	newbuckets.push({
-			// 		ratio: images.value[i].ratio!,
-			// 		sizes: [newSize]
-			// 	})
-			// } else {
-			// 	newbuckets[i].sizes.push(newSize);
-			// }
-		}
-		buckets.value = newbuckets;
-
-		// update bucket ratio radio groups
-		if (images.value[index].ratio) {
-			bucketRatioRadio.value = newbuckets.findIndex(v => v.ratio == images.value[index].ratio);
-			// currentRatio.value = buckets.value[bucketRatioRadio.value].ratio;
-		} else {
-			bucketRatioRadio.value = -1;
-			// currentRatio.value = null;
-		}
-		onBucketRatioRadioChange(bucketRatioRadio.value, index);
 	}
 	selectedIndex.value = index;
 	showPreview.value = null;
 }
 const bucketResolutionList = ref<Size[]>([]);
-function onBucketRatioRadioChange(value: number | null, targetIndex: number | null = null) {
+function onBucketChange(value: number | null) {
 	if (value == null) return;
-	if (targetIndex == null) targetIndex = selectedIndex.value;
 
 	if (value == -1) {
 		currentRatio.value = null;
@@ -167,15 +109,8 @@ function onCropperChange(options: CropperResult) {
 	}
 }
 
-const kDefaultRatio = 0.8;
 function getCropperDefaultPosition() {
 	const item = images.value[selectedIndex.value];
-	if (!item.crop) {
-		return {
-			left: (item.width - item.width * kDefaultRatio) / 2,
-			top: (item.height - item.height * kDefaultRatio) / 2,
-		}
-	}
 	return {
 		left: item.crop.x,
 		top: item.crop.y,
@@ -183,18 +118,11 @@ function getCropperDefaultPosition() {
 }
 function getCropperDefaultSize() {
 	const item = images.value[selectedIndex.value];
-	if (!item.crop) {
-		return {
-			width: item.width * kDefaultRatio,
-			height: item.height * kDefaultRatio,
-		}
-	}
 	return {
 		width: item.crop.width,
 		height: item.crop.height
 	};
 }
-
 function onFileAdded(e: Event) {
 	const files = Array.from((e.target as HTMLInputElement).files!);
 	files.forEach((file) => {
@@ -202,14 +130,17 @@ function onFileAdded(e: Event) {
 		reader.onload = () => {
 			const img = new Image();
 			img.onload = function () {
-				const append = {
+				const defaultCrop = calculateDefaultCrop({
+					width: img.naturalWidth,
+					height: img.naturalHeight,
+				}, 0.8)
+				const append: Image = {
 					src: reader.result as string,
 					title: file.name,
 					width: img.naturalWidth,
 					height: img.naturalHeight,
-					crop: null,
-					ratio: null,
-					resize: null,
+					crop: defaultCrop,
+					bucket: -1,
 				};
 				images.value = [...images.value, append];
 			}
@@ -386,38 +317,17 @@ async function exportAsZip() {
 								<VExpansionPanelTitle>桶</VExpansionPanelTitle>
 								<VExpansionPanelText>
 									<VRow>
-										<VRadioGroup v-model="bucketRatioRadio" @update:model-value="onBucketRatioRadioChange">
+										<VRadioGroup v-model="bucketRadio" @update:model-value="onBucketChange">
 											<VRadio 
 												v-for="(item, i) in buckets" 
 												:value="i"
-												:label="item.ratio.width + ' : ' + item.ratio.height"
+												:label="item.width + ' : ' + item.height"
 											/>
-											<VRadio label="自定义" value=-1></VRadio>
-											<!-- <VForm ref="customBucketForm">
-												<VContainer>
-													<VRow>
-														<VCol>
-
-														</VCol>
-													</VRow>
-												</VContainer>
-											</VForm> -->
+											<VRadio label="不使用" value=-1></VRadio>
 										</VRadioGroup>
 									</VRow>
-								</VExpansionPanelText>
-							</VExpansionPanel>
-							<VExpansionPanel>
-								<VExpansionPanelTitle>缩放</VExpansionPanelTitle>
-								<VExpansionPanelText>
 									<VRow>
-										<VRadioGroup v-model="bucketResolution">
-											<VRadio
-												v-for="(item, i) in bucketResolutionList"
-												:value="i"
-												:label="item.width + ' x ' + item.height"
-											/>
-											<VRadio label="自定义" value=-1></VRadio>
-										</VRadioGroup>
+										<VBtn prepend-icon="mdi-bookmark-plus-outline" class="w-100">添加配置</VBtn>
 									</VRow>
 								</VExpansionPanelText>
 							</VExpansionPanel>
