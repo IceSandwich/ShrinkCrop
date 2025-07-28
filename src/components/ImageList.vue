@@ -37,6 +37,9 @@ function onArrowKey(e: KeyboardEvent) {
 	if (curid.value === -1) return;
 	if (e.key !== 'ArrowLeft' && e.key!== 'ArrowRight') return;
 
+	e.stopPropagation();
+	e.preventDefault();
+
 	let newid = -1;
 	if (e.key === 'ArrowLeft') {
 		newid = clamp(curid.value - 1, 0, props.items.length - 1);
@@ -49,13 +52,22 @@ function onArrowKey(e: KeyboardEvent) {
 	}
 }
 
+function SetID(id: number) {
+	curid.value = id;
+	console.log("===>", curid.value);
+}
+
 onMounted(() => {
-	document.addEventListener("keyup", onArrowKey);
+	document.addEventListener("keydown", onArrowKey);
 })
 
 onUnmounted(() => {
-	document.removeEventListener("keyup", onArrowKey);
+	document.removeEventListener("keydown", onArrowKey);
 });
+
+defineExpose({
+	SetID,
+})
 </script>
 
 <template>

@@ -28,7 +28,15 @@ interface Bucket {
 	size: Size;
 	ratio: Size;
 }
-let ctx: CanvasRenderingContext2D | null = null;
+interface ExportData {
+	srcWidth: number,
+	srcHeight: number,
+	cropX: number,
+	cropY: number,
+	cropWidth: number,
+	cropHeight: number,
+	bucket: Bucket | null,
+}
 
 function calculateAspectRatio(width: number, height: number): Size {
     // 计算最大公约数 (GCD)
@@ -57,7 +65,11 @@ type ResponseType = 'base64' | 'blob';
  * 实现ResizeAndCrop的逻辑，最后保证输出尺寸为`targetSize`
  */
 function applyImage(src: string, crop: Rect, targetSize: Size, type: ResponseType) {
+	const canvas = document.createElement('canvas');
+	const ctx = canvas.getContext('2d');
 	if (ctx == null) return null;
+	ctx.imageSmoothingEnabled = true;         // 开启插值
+    ctx.imageSmoothingQuality = "medium";       // 设置高质量插值
 
 	const img = new Image();
 	const promise = new Promise<string | Blob>((resolve, reject) => {
@@ -117,15 +129,16 @@ function sharpenImage(src: string | Blob, strength: number) {
 const images = ref<Image[]>([]);
 const buckets = ref<Bucket[]>([]);
 const cropper = useTemplateRef("cropper");
-const showPreview = ref<string | null>(null);
-const bucketRadio = ref(-1);
+const showPreview = shallowRef<string | null>(null);
+const bucketRadio = shallowRef(-1);
 
-let selectedIndex = ref(-1);
+let selectedIndex = shallowRef(-1);
 let displayCrop = ref<Rect>({ x:0, y:0, width:160, height:90 });
 function updateCropCoordinates() {
 	if (selectedIndex.value == -1) return false;
+	if (!cropper.value) return false;
 
-	const cropRect = cropper.value!.getResult();
+	const cropRect = cropper.value.getResult();
 	images.value[selectedIndex.value].crop = {
 		x: cropRect.coordinates.left,
 		y: cropRect.coordinates.top,
@@ -136,10 +149,11 @@ function updateCropCoordinates() {
 	images.value[selectedIndex.value].bucket = bucketRadio.value;
 }
 function onImageChange(index: number) {
+	showPreview.value = null;
 	updateCropCoordinates();
 	selectedIndex.value = index;
 	bucketRadio.value = images.value[index].bucket;
-	showPreview.value = null;
+	onBucketChange(bucketRadio.value);
 }
 
 
@@ -157,6 +171,7 @@ function getCropperDefaultSize() {
 		height: item.crop.height
 	};
 }
+const showAlert = shallowRef(false);
 function onCropperChange(options: CropperResult) {
 	displayCrop.value = {
 		x: options.coordinates.left,
@@ -164,6 +179,19 @@ function onCropperChange(options: CropperResult) {
 		width: options.coordinates.width,
 		height: options.coordinates.height,
 	}
+
+	const makeAlert = function() {
+		console.log("sdsdsd", selectedIndex.value, images.value[selectedIndex.value].bucket);
+		if (selectedIndex.value == -1) return false;
+		if (images.value[selectedIndex.value].bucket == -1) return false;
+		const size = buckets.value[images.value[selectedIndex.value].bucket].size;
+		console.log(size, displayCrop.value);
+		if (displayCrop.value.width < size.width || displayCrop.value.height < size.height) {
+			return true;
+		}
+		return false;
+	}
+	showAlert.value = makeAlert();
 }
 const currentRatio = shallowRef<Size | null>(null);
 const cropperStencilProps = computed(() => {
@@ -204,8 +232,7 @@ function onAddConfigTargetHeightChanged(val: boolean) {
 		}
 	}
 }
-function onAddConfigClicked() {
-	bucketDialog.value = false;
+function onAddConfigApplyClicked() {
 	buckets.value.push({
 		size: {
 			width: addConfigTargetWidth.value,
@@ -213,6 +240,22 @@ function onAddConfigClicked() {
 		},
 		ratio: calculateAspectRatio(addConfigTargetWidth.value, addConfigTargetHeight.value),
 	});
+	const index = buckets.value.length - 1;
+	images.value[selectedIndex.value].bucket = index;
+	bucketDialog.value = false;
+	bucketRadio.value = index;
+	onBucketChange(index);
+}
+function onAddConfigDialogClicked() {
+	if (!cropper.value) {
+		alert("cropper.value is null.")
+		return;
+	}
+
+	const cropRect = cropper.value.getResult();
+	addConfigTargetWidth.value = cropRect.coordinates.width;
+	addConfigTargetHeight.value = cropRect.coordinates.height;
+	bucketDialog.value = true;
 }
 function onBucketChange(value: number | null) {
 	if (value == null) return;
@@ -223,8 +266,15 @@ function onBucketChange(value: number | null) {
 	}
 	currentRatio.value = buckets.value[value].ratio;
 }
+const fetchUnusedBuckets = computed(() => {
+	return images.value.filter(v => v.bucket == -1).length;
+});
 
 
+const fileproxy = useTemplateRef("input-field");
+function onAddFileClicked() {
+	fileproxy.value?.click();
+}
 function onFileAdded(e: Event) {
 	const files = Array.from((e.target as HTMLInputElement).files!);
 	files.forEach((file) => {
@@ -279,12 +329,13 @@ async function exportAsZip() {
 		}
 	}
 
+	let mapping: { [key: string]: ExportData } = {}
 	Promise.all(cropperPromise).then((val) => {
 		val.forEach((data, i) => {
 			const img = images.value[cropperIndex[i]];
 			zip.file(`${img.title}.png`, data as Blob);
 
-			const jsonData = {
+			mapping[img.title] = {
 				srcWidth: img.width,
 				srcHeight: img.height,
 				cropX: img.crop?.x,
@@ -293,10 +344,11 @@ async function exportAsZip() {
 				cropHeight: img.crop?.height,
 				bucket: img.bucket == -1 ? null : buckets.value[img.bucket],
 			}
-			zip.file(`${img.title}.json`, JSON.stringify(jsonData));
 		});
-
-		zip.generateAsync({type:"blob"}).then((data) => {
+	}).then(() => {
+		zip.file(`shrink-crop.json`, JSON.stringify(mapping, null, 4));
+	}).then(() => {
+		zip.generateAsync({type:"blob"}).then((data: Blob) => {
 			const link = document.createElement("a");
 			link.href = URL.createObjectURL(data);
 			link.download = "export.zip";
@@ -307,56 +359,112 @@ async function exportAsZip() {
 	});
 }
 
+function togglePreview(status: boolean | null = null) {
+	if (selectedIndex.value == -1 || images.value[selectedIndex.value].crop == null) return false;
 
-function onKeyup(e: KeyboardEvent) {
-	if (e.key == '`') {
-		if (selectedIndex.value == -1 || images.value[selectedIndex.value].crop == null) return;
-		if (showPreview.value == null || cropper.value != null) {
-			updateCropCoordinates();
-			
-			const crop = applyImage(images.value[selectedIndex.value].src, images.value[selectedIndex.value].crop, buckets.value[selectedIndex.value].size, "base64");
-			if (crop == null) {
-				alert("cannot get preview image.");
-			} else {
-				e.stopPropagation();
-				e.preventDefault();
-				crop.then((dataUrl) => {
-					showPreview.value = dataUrl as string;
-				})
-			}
-		} else {
-			e.stopPropagation();
-			e.preventDefault();
+	if (status != null) {
+		if (status == true) {
 			showPreview.value = null;
+		} else {
+			showPreview.value = null;
+			return true;
 		}
 	}
+
+	if (showPreview.value == null || cropper.value != null) {
+		updateCropCoordinates();
+
+		const img = images.value[selectedIndex.value];
+		const targetSize = img.bucket == -1 ? {
+			width: img.crop.width,
+			height: img.crop.height,
+		} : buckets.value[img.bucket].size;
+		
+		const crop = applyImage(img.src, img.crop, targetSize, "base64");
+		if (crop == null) {
+			alert("cannot get preview image.");
+		} else {
+			crop.then((dataUrl) => {
+				showPreview.value = dataUrl as string;
+			})
+			return true;
+		}
+	} else {
+		showPreview.value = null;
+		return true;
+	}
+	return false;
+}
+
+const deleteDialog = shallowRef(false);
+function onKeyup(e: KeyboardEvent) {
+	if (e.key == '`') {
+		if (togglePreview()) {
+			e.stopPropagation();
+			e.preventDefault();
+		}
+	}
+
+	if (e.key.toLowerCase() == 'delete') {
+		if (selectedIndex.value == -1) return;
+		
+		deleteDialog.value = true;
+	}
+
+	if (e.key.toLowerCase() == 'a') {
+		onAddConfigDialogClicked();
+	}
+}
+const imageList = useTemplateRef("imageList");
+function onDeleteDialogApplyClicked() {
+	showPreview.value = null;
+	const imgCount = images.value.length;
+	images.value.splice(selectedIndex.value, 1);
+	if (selectedIndex.value == imgCount - 1) {
+		selectedIndex.value = imgCount - 2;
+	}
+	if (selectedIndex.value != -1) {
+		bucketRadio.value = images.value[selectedIndex.value].bucket;
+		onBucketChange(bucketRadio.value);
+	}
+	imageList.value?.SetID(selectedIndex.value);
+	deleteDialog.value = false;
 }
 onMounted(() => {
 	document.addEventListener('keyup', onKeyup);
-
-	const canvas = document.createElement('canvas');
-	ctx = canvas.getContext('2d');
 })
 onUnmounted(() => {
 	document.removeEventListener('keyup', onKeyup);
 })
+const sidebarMenuExpansion = shallowRef([0, 1, 2, 3]);
 </script>
 
 <template>
 	<VApp>
+		<VDialog v-model="deleteDialog" max-width="600">
+			<VCard>
+				<VCardText>
+					确定删除该图片吗？
+				</VCardText>
+				<template v-slot:actions>
+					<VBtn @click="deleteDialog = false">取消</VBtn>
+					<VBtn @click="onDeleteDialogApplyClicked" prepend-icon="mdi-delete" variant="tonal" color="red-darken-3">确定删除</VBtn>
+				</template>
+			</VCard>
+		</VDialog>
 		<SplitView @on-panel-resize="cropper?.refresh()" panelbg-color="rgba(127, 127, 127, 0.5)">
 			<template v-slot:sidebar>
 				<VContainer>
 					<VRow class="mb-5">
 						<input type="file" style="display: none;" ref="input-field" @change="onFileAdded" multiple
 							accept="image/*" />
-						<VBtn class="w-100" @click="$refs['input-field'].click()" prepend-icon="mdi-plus">添加图片</VBtn>
+						<VBtn class="w-100" @click="onAddFileClicked" prepend-icon="mdi-plus">添加图片</VBtn>
 					</VRow>
 					<VRow class="mb-5">
 						<VBtn class="w-100" prepend-icon="mdi-export" @click="exportAsZip">导出</VBtn>
 					</VRow>
 					<VRow>
-						<VExpansionPanels v-if="selectedIndex !== -1" multiple>
+						<VExpansionPanels v-if="selectedIndex !== -1" v-model="sidebarMenuExpansion" multiple>
 							<VExpansionPanel>
 								<VExpansionPanelTitle>图片信息</VExpansionPanelTitle>
 								<VExpansionPanelText class="px-3 py-3">
@@ -370,11 +478,16 @@ onUnmounted(() => {
 									<VRow>
 										裁剪大小：<span>{{  displayCrop.width  }} x {{  displayCrop.height }}</span>
 									</VRow>
+									<VRow v-if="showAlert" class="pt-3">
+										<VAlert border="start" border-color="red-darken-2" elevation="2">
+											放大裁剪区域
+										</VAlert>
+									</VRow>
 								</VExpansionPanelText>
 							</VExpansionPanel>
 							<VExpansionPanel>
 								<VExpansionPanelTitle>桶</VExpansionPanelTitle>
-								<VExpansionPanelText>
+								<VExpansionPanelText class="px-3 py-3">
 									<VRow>
 										<VRadioGroup v-model="bucketRadio" @update:model-value="onBucketChange">
 											<VRadio 
@@ -385,15 +498,16 @@ onUnmounted(() => {
 													{{ item.size.width }} x {{ item.size.height }} ( {{  item.ratio.width  }} : {{  item.ratio.height }})
 												</template>
 											</VRadio>
-											<VRadio label="不使用" value=-1></VRadio>
+											<VRadio :value="-1">
+												<template v-slot:label>
+													不使用 ( {{ fetchUnusedBuckets }} / {{ images.length }} )
+												</template>
+											</VRadio>
 										</VRadioGroup>
 									</VRow>
 									<VRow>
+										<VBtn color="indigo-darken-3" size="large" prepend-icon="mdi-bookmark-plus-outline" class="w-100" @click="onAddConfigDialogClicked">添加配置 (A)</VBtn>
 										<VDialog v-model="bucketDialog" max-width="600">
-											<template v-slot:activator="{ props: activatorProps }">
-												<VBtn prepend-icon="mdi-bookmark-plus-outline" class="w-100" v-bind="activatorProps">添加配置</VBtn>
-											</template>
-
 											<VCard prepend-icon="mdi-bookmark-plus-outline" title="添加配置">
 												<VCardText>
 													<VRow>
@@ -422,7 +536,7 @@ onUnmounted(() => {
 													</VRow>
 												</VCardText>
 												<template v-slot:actions>
-													<VBtn class="ms-auto" text="添加" @click="onAddConfigClicked" />
+													<VBtn class="ms-auto" text="添加" @click="onAddConfigApplyClicked" />
 												</template>
 											</VCard>
 										</VDialog>
@@ -442,6 +556,17 @@ onUnmounted(() => {
 									</VRow>
 								</VExpansionPanelText>
 							</VExpansionPanel>
+							<VExpansionPanel>
+								<VExpansionPanelTitle>操作</VExpansionPanelTitle>
+								<VExpansionPanelText class="px-3 py-3">
+									<VRow>
+										预览(快捷键：`)
+									</VRow>
+									<VRow>
+										切换效果(快捷键: s)
+									</VRow>
+								</VExpansionPanelText>
+							</VExpansionPanel>
 						</VExpansionPanels>
 					</VRow>
 				</VContainer>
@@ -449,7 +574,7 @@ onUnmounted(() => {
 			<template v-slot:content>
 				<SplitView disable-handler vertical>
 					<template v-slot:sidebar>
-						<ImageList :items="images" @change="onImageChange"></ImageList>
+						<ImageList :items="images" @change="onImageChange" ref="imageList"></ImageList>
 					</template>
 					<template v-slot:content v-if="selectedIndex !== -1">
 						<template v-if="showPreview">

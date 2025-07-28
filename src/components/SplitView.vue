@@ -15,7 +15,7 @@ const getFlexDirection = computed(() => {
 
 let dragStart = 0;
 let oldSidebarWidth = 0;
-let sidebarWidth = ref(200);
+let sidebarWidth = ref(300);
 function onResizerMouseDown(e: MouseEvent) {
 	dragStart = e.clientX;
 	oldSidebarWidth = sidebarWidth.value;
