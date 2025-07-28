@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import SplitView from './components/SplitView.vue';
 import ImageList from './components/ImageList.vue';
 import { Cropper, type CropperResult } from 'vue-advanced-cropper'
@@ -24,7 +24,10 @@ interface Image {
 	crop: Rect;
 	bucket: number;
 }
-type Bucket = Size;
+interface Bucket {
+	size: Size;
+	ratio: Size;
+}
 
 function calculateAspectRatio(width: number, height: number): Size {
     // 计算最大公约数 (GCD)
@@ -48,13 +51,53 @@ function calculateDefaultCrop(size: Size, ratio: number = 0.8): Rect {
 	const cropY = Math.floor((size.height - cropHeight)/2);
 	return { x: cropX, y: cropY, width: cropWidth, height: cropHeight };
 }
+type ResponseType = 'base64' | 'blob';
+/**
+ * 实现ResizeAndCrop的逻辑，最后保证输出尺寸为`targetSize`。
+ */
+function applyImage(src: string, crop: Rect, targetSize: Size, type: ResponseType) {
+	const canvas = document.createElement('canvas');
+	const ctx = canvas.getContext('2d');
+	if (ctx == null) return null;
+
+	const img = new Image();
+	const promise = new Promise<string | Blob>((resolve, reject) => {
+		img.onerror = function (e) {
+			reject(e);
+		}
+
+		img.onload = function() {
+			if (crop.width / crop.height > targetSize.width / targetSize.height) {
+				crop.width = Math.ceil(targetSize.width * crop.height / targetSize.height);
+			} else {
+				crop.height = Math.ceil(targetSize.height * crop.width / targetSize.width);
+			}
+
+			console.log(`Crop ratio: ${crop.width} / ${crop.height} = ${crop.width / crop.height}, target ratio: ${targetSize.width} / ${targetSize.height} = ${targetSize.width / targetSize.height}`);
+
+			canvas.width = targetSize.width;
+			canvas.height = targetSize.height;
+			ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, targetSize.width, targetSize.height);
+
+			if (type === 'base64') {
+				resolve(canvas.toDataURL());
+			} else {
+				canvas.toBlob((blob: Blob | null) => {
+					if (blob == null) reject("null blob");
+					else resolve(blob);
+				});
+			}
+		}
+	});
+	img.src = src;
+	return promise;
+}
 
 const images = ref<Image[]>([]);
 const buckets = ref<Bucket[]>([]);
 const cropper = useTemplateRef("cropper");
-const bucketRadio = ref(-1);
-// const currentRatio = ref<Size | null>(null);
 const showPreview = ref<string | null>(null);
+const bucketRadio = ref(-1);
 
 let selectedIndex = ref(-1);
 let displayCrop = ref<Rect>({ x:0, y:0, width:160, height:90 });
@@ -68,46 +111,16 @@ function updateCropCoordinates() {
 		width: cropRect.coordinates.width,
 		height: cropRect.coordinates.height,
 	}
+
+	images.value[selectedIndex.value].bucket = bucketRadio.value;
 }
 function onImageChange(index: number) {
-	if (selectedIndex.value !== -1) {
-		updateCropCoordinates();
-	}
+	updateCropCoordinates();
 	selectedIndex.value = index;
+	bucketRadio.value = images.value[index].bucket;
 	showPreview.value = null;
 }
-const bucketResolutionList = ref<Size[]>([]);
-function onBucketChange(value: number | null) {
-	if (value == null) return;
 
-	if (value == -1) {
-		currentRatio.value = null;
-		bucketResolutionList.value = [];
-		bucketResolution.value = -1;
-		return;
-	}
-
-	currentRatio.value = buckets.value[value].ratio;
-	bucketResolutionList.value = buckets.value[value].sizes;
-	const img = images.value[targetIndex];
-	if (img.resize == null) {
-		bucketResolution.value = -1;
-	} else {
-		bucketResolution.value = buckets.value[value].sizes.findIndex((v) => {
-			return v.width == img.resize!.width && v.height == img.resize!.height;
-		});
-	}
-	
-	console.log("=====", bucketResolution.value);
-}
-function onCropperChange(options: CropperResult) {
-	displayCrop.value = {
-		x: options.coordinates.left,
-		y: options.coordinates.top,
-		width: options.coordinates.width,
-		height: options.coordinates.height,
-	}
-}
 
 function getCropperDefaultPosition() {
 	const item = images.value[selectedIndex.value];
@@ -123,6 +136,74 @@ function getCropperDefaultSize() {
 		height: item.crop.height
 	};
 }
+function onCropperChange(options: CropperResult) {
+	displayCrop.value = {
+		x: options.coordinates.left,
+		y: options.coordinates.top,
+		width: options.coordinates.width,
+		height: options.coordinates.height,
+	}
+}
+const currentRatio = shallowRef<Size | null>(null);
+const cropperStencilProps = computed(() => {
+	if (currentRatio.value == null) {
+		return { }
+	} else {
+		return {
+			aspectRatio: currentRatio.value.width / currentRatio.value.height,
+		}
+	}
+});
+
+
+const bucketDialog = shallowRef(false);
+const addConfigKeepRatioCheckbox = shallowRef(true);
+const addConfigTargetWidth = shallowRef(0);
+const addConfigTargetHeight = shallowRef(0);
+let oldTargetSize: Size = {width: 0, height: 0};
+function saveTargetSize() {
+	oldTargetSize.width = addConfigTargetWidth.value;
+	oldTargetSize.height = addConfigTargetHeight.value;
+}
+function onAddConfigTargetWidthChanged(val: boolean) {
+	if (val) {
+		saveTargetSize();
+	} else {
+		if (oldTargetSize.width != 0 && addConfigKeepRatioCheckbox.value) {
+			addConfigTargetHeight.value = Math.floor(addConfigTargetWidth.value * oldTargetSize.height / oldTargetSize.width);
+		}
+	}
+}
+function onAddConfigTargetHeightChanged(val: boolean) {
+	if (val) {
+		saveTargetSize();
+	} else {
+		if (oldTargetSize.height != 0 && addConfigKeepRatioCheckbox.value) {
+			addConfigTargetWidth.value = Math.floor(addConfigTargetHeight.value * oldTargetSize.width / oldTargetSize.height);
+		}
+	}
+}
+function onAddConfigClicked() {
+	bucketDialog.value = false;
+	buckets.value.push({
+		size: {
+			width: addConfigTargetWidth.value,
+			height: addConfigTargetHeight.value,
+		},
+		ratio: calculateAspectRatio(addConfigTargetWidth.value, addConfigTargetHeight.value),
+	});
+}
+function onBucketChange(value: number | null) {
+	if (value == null) return;
+
+	if (value == -1) {
+		currentRatio.value = null;
+		return;
+	}
+	currentRatio.value = buckets.value[value].ratio;
+}
+
+
 function onFileAdded(e: Event) {
 	const files = Array.from((e.target as HTMLInputElement).files!);
 	files.forEach((file) => {
@@ -149,85 +230,6 @@ function onFileAdded(e: Event) {
 		reader.readAsDataURL(file);
 	});
 }
-
-const cropperStencilProps = computed(() => {
-	if (bucketRatioRadio.value == -1 || currentRatio.value == null) {
-		return {
-
-		}
-	} else {
-		return {
-			aspectRatio: currentRatio.value.width / currentRatio.value.height,
-		}
-	}
-});
-
-type ResponseType = 'base64' | 'blob';
-function cropImage(src: string, crop: Rect, type: ResponseType) {
-	const canvas = document.createElement('canvas');
-	const ctx = canvas.getContext('2d');
-	if (ctx == null) return null;
-
-	const img = new Image();
-	const promise = new Promise<string | Blob>((resolve, reject) => {
-		img.onerror = function (e) {
-			reject(e);
-		}
-
-		img.onload = function() {
-			canvas.width = img.width;
-			canvas.height = img.height;
-			ctx.drawImage(img, 0, 0);
-
-			const cropped = ctx.getImageData(crop.x, crop.y, crop.width, crop.height);
-			canvas.width = crop.width;
-			canvas.height = crop.height;
-
-			ctx.putImageData(cropped, 0, 0);
-			if (type === 'base64') {
-				resolve(canvas.toDataURL());
-			} else {
-				canvas.toBlob((blob: Blob | null) => {
-					if (blob == null) reject("null blob");
-					else resolve(blob);
-				});
-			}
-		}
-	});
-	img.src = src;
-	return promise;
-}
-
-function onKeyup(e: KeyboardEvent) {
-	if (e.key == '`') {
-		if (selectedIndex.value == -1 || images.value[selectedIndex.value].crop == null) return;
-		if (showPreview.value == null || cropper.value != null) {
-			updateCropCoordinates();
-			
-			const crop = cropImage(images.value[selectedIndex.value].src, images.value[selectedIndex.value].crop!, "base64");
-			if (crop == null) {
-				alert("cannot get preview image.");
-			} else {
-				e.stopPropagation();
-				e.preventDefault();
-				crop.then((dataUrl) => {
-					showPreview.value = dataUrl as string;
-				})
-			}
-		} else {
-			e.stopPropagation();
-			e.preventDefault();
-			showPreview.value = null;
-		}
-	}
-}
-onMounted(() => {
-	document.addEventListener('keyup', onKeyup);
-})
-onUnmounted(() => {
-	document.removeEventListener('keyup', onKeyup);
-})
-
 async function exportAsZip() {
 	updateCropCoordinates();
 
@@ -242,7 +244,12 @@ async function exportAsZip() {
 			continue;
 		}
 
-		const cropImgPromise = cropImage(img.src, img.crop, "blob");
+		const targetSize = img.bucket == -1 ? {
+			width: img.crop.width,
+			height: img.crop.height,
+		} : buckets.value[img.bucket].size;
+
+		const cropImgPromise = applyImage(img.src, img.crop, targetSize, "blob");
 		if (cropImgPromise == null) {
 			console.log("failed to init canvas for img: ", img.title);
 		} else {
@@ -281,6 +288,39 @@ async function exportAsZip() {
 		console.log("failed to export: ", err);
 	});
 }
+
+
+function onKeyup(e: KeyboardEvent) {
+	if (e.key == '`') {
+		if (selectedIndex.value == -1 || images.value[selectedIndex.value].crop == null) return;
+		if (showPreview.value == null || cropper.value != null) {
+			updateCropCoordinates();
+			
+			const crop = cropImage(images.value[selectedIndex.value].src, images.value[selectedIndex.value].crop!, "base64");
+			if (crop == null) {
+				alert("cannot get preview image.");
+			} else {
+				e.stopPropagation();
+				e.preventDefault();
+				crop.then((dataUrl) => {
+					showPreview.value = dataUrl as string;
+				})
+			}
+		} else {
+			e.stopPropagation();
+			e.preventDefault();
+			showPreview.value = null;
+		}
+	}
+}
+onMounted(() => {
+	document.addEventListener('keyup', onKeyup);
+})
+onUnmounted(() => {
+	document.removeEventListener('keyup', onKeyup);
+})
+
+
 </script>
 
 <template>
@@ -321,13 +361,52 @@ async function exportAsZip() {
 											<VRadio 
 												v-for="(item, i) in buckets" 
 												:value="i"
-												:label="item.width + ' : ' + item.height"
-											/>
+											>
+												<template v-slot:label>
+													{{ item.size.width }} x {{ item.size.height }} ( {{  item.ratio.width  }} : {{  item.ratio.height }})
+												</template>
+											</VRadio>
 											<VRadio label="不使用" value=-1></VRadio>
 										</VRadioGroup>
 									</VRow>
 									<VRow>
-										<VBtn prepend-icon="mdi-bookmark-plus-outline" class="w-100">添加配置</VBtn>
+										<VDialog v-model="bucketDialog" max-width="600">
+											<template v-slot:activator="{ props: activatorProps }">
+												<VBtn prepend-icon="mdi-bookmark-plus-outline" class="w-100" v-bind="activatorProps">添加配置</VBtn>
+											</template>
+
+											<VCard prepend-icon="mdi-bookmark-plus-outline" title="添加配置">
+												<VCardText>
+													<VRow>
+														<VCol cols="6">
+															<VNumberInput
+																control-variant="hidden"
+																label="Target Width"
+																v-model="addConfigTargetWidth"
+																@update:focused="onAddConfigTargetWidthChanged"
+															/>
+														</VCol>
+														<VCol cols="6">
+															<VNumberInput
+																control-variant="hidden"
+																label="Target Height"
+																v-model="addConfigTargetHeight"
+																@update:focused="onAddConfigTargetHeightChanged"
+															/>
+														</VCol>
+													</VRow>
+													<VRow>
+														<VCheckbox
+															label="保存宽高比"
+															v-model="addConfigKeepRatioCheckbox"
+														/>
+													</VRow>
+												</VCardText>
+												<template v-slot:actions>
+													<VBtn class="ms-auto" text="添加" @click="onAddConfigClicked" />
+												</template>
+											</VCard>
+										</VDialog>
 									</VRow>
 								</VExpansionPanelText>
 							</VExpansionPanel>
