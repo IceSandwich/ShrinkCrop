@@ -28,6 +28,7 @@ interface Bucket {
 	size: Size;
 	ratio: Size;
 }
+let ctx: CanvasRenderingContext2D | null = null;
 
 function calculateAspectRatio(width: number, height: number): Size {
     // 计算最大公约数 (GCD)
@@ -53,11 +54,9 @@ function calculateDefaultCrop(size: Size, ratio: number = 0.8): Rect {
 }
 type ResponseType = 'base64' | 'blob';
 /**
- * 实现ResizeAndCrop的逻辑，最后保证输出尺寸为`targetSize`。
+ * 实现ResizeAndCrop的逻辑，最后保证输出尺寸为`targetSize`
  */
 function applyImage(src: string, crop: Rect, targetSize: Size, type: ResponseType) {
-	const canvas = document.createElement('canvas');
-	const ctx = canvas.getContext('2d');
 	if (ctx == null) return null;
 
 	const img = new Image();
@@ -91,6 +90,28 @@ function applyImage(src: string, crop: Rect, targetSize: Size, type: ResponseTyp
 	});
 	img.src = src;
 	return promise;
+}
+/**
+ * 对base64图像或blob图像应用虚化蒙版
+ */
+function sharpenImage(src: string | Blob, strength: number) {
+	if (ctx == null) return null;
+
+	const processBase64Img = function (base64src: string) {
+		const img = new Image();
+		img.onload = function() {
+			
+		}
+		img.src = base64src;
+	}
+
+	if (typeof src === typeof Blob) {
+		const reader = new FileReader();
+		reader.onload = () => processBase64Img(reader.result as string);
+		reader.readAsDataURL(src as Blob);
+	} else {
+		processBase64Img(src as string);
+	}
 }
 
 const images = ref<Image[]>([]);
@@ -270,10 +291,7 @@ async function exportAsZip() {
 				cropY: img.crop?.y,
 				cropWidth: img.crop?.width,
 				cropHeight: img.crop?.height,
-				ratioWidth: img.ratio?.width,
-				ratioHeight: img.ratio?.height,
-				dstWidth: img.resize?.width,
-				dstHeight: img.resize?.height,
+				bucket: img.bucket == -1 ? null : buckets.value[img.bucket],
 			}
 			zip.file(`${img.title}.json`, JSON.stringify(jsonData));
 		});
@@ -296,7 +314,7 @@ function onKeyup(e: KeyboardEvent) {
 		if (showPreview.value == null || cropper.value != null) {
 			updateCropCoordinates();
 			
-			const crop = cropImage(images.value[selectedIndex.value].src, images.value[selectedIndex.value].crop!, "base64");
+			const crop = applyImage(images.value[selectedIndex.value].src, images.value[selectedIndex.value].crop, buckets.value[selectedIndex.value].size, "base64");
 			if (crop == null) {
 				alert("cannot get preview image.");
 			} else {
@@ -315,12 +333,13 @@ function onKeyup(e: KeyboardEvent) {
 }
 onMounted(() => {
 	document.addEventListener('keyup', onKeyup);
+
+	const canvas = document.createElement('canvas');
+	ctx = canvas.getContext('2d');
 })
 onUnmounted(() => {
 	document.removeEventListener('keyup', onKeyup);
 })
-
-
 </script>
 
 <template>
