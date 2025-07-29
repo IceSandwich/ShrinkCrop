@@ -15,6 +15,7 @@ import { createApp } from 'vue'
 
 // Styles
 import 'unfonts.css'
+import 'vue-advanced-cropper/dist/style.css';
 
 const app = createApp(App)
 

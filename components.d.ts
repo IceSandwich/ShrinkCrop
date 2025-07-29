@@ -8,8 +8,17 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    Buckets: typeof import('./src/components/ExpansionPanels/Buckets.vue')['default']
+    CropperWithPreview: typeof import('./src/components/CropperWithPreview.vue')['default']
+    DeleteDialog: typeof import('./src/components/DeleteDialog.vue')['default']
     HelloWorld: typeof import('./src/components/HelloWorld.vue')['default']
+    ImageInfo: typeof import('./src/components/ExpansionPanels/ImageInfo.vue')['default']
+    ImageInfoExpansionPanel: typeof import('./src/components/ExpansionPanels/ImageInfoExpansionPanel.vue')['default']
     ImageList: typeof import('./src/components/ImageList.vue')['default']
+    PreviewSwitcher: typeof import('./src/components/PreviewSwitcher.vue')['default']
+    Repair: typeof import('./src/components/ExpansionPanels/Repair.vue')['default']
+    Shortcut: typeof import('./src/components/ExpansionPanels/Shortcut.vue')['default']
     SplitView: typeof import('./src/components/SplitView.vue')['default']
+    UploadBtn: typeof import('./src/components/UploadBtn.vue')['default']
   }
 }
