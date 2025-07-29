@@ -33,9 +33,10 @@ function updateCropCoordinates() {
 function onImageChange(index: number) {
 	updateCropCoordinates();
 	cropper.value?.ShowPreview(false);
-	repairPanel.value?.SetResizeQuality(images.value[index].resizeQuality);
-	bucketPanel.value?.SetBucketId(images.value[index].bucket);
 	selectedIndex.value = index;
+	repairPanel.value?.SetResizeQuality(images.value[index].resizeQuality);
+	repairPanel.value?.SetSharpness(images.value[index].sharpness);
+	bucketPanel.value?.SetBucketId(images.value[index].bucket);
 }
 
 const showAlert = shallowRef(false);
@@ -104,6 +105,7 @@ function onFileAdded(files: File[]) {
 					crop: defaultCrop,
 					bucket: -1,
 					resizeQuality: "medium",
+					sharpness: 0,
 				};
 				images.value = [...images.value, append];
 			}
@@ -174,6 +176,11 @@ function onResizeQualityChanged(val: ImageSmoothingQuality) {
 	images.value[selectedIndex.value].resizeQuality = val;
 	cropper.value?.Refresh();
 }
+function onSharpnessChanged(val: number) {
+	console.log(">>>>", val);
+	images.value[selectedIndex.value].sharpness = val;
+	cropper.value?.Refresh();
+}
 
 
 const deleteDialog = useTemplateRef("deleteDialog");
@@ -239,7 +246,7 @@ const sidebarMenuExpansion = shallowRef([0, 1, 2, 3]);
 						<VExpansionPanels v-if="selectedIndex !== -1" v-model="sidebarMenuExpansion" multiple>
 							<ImageInfoExpansionPanel :img="images[selectedIndex]" :display-crop="displayCrop" :show-alert="showAlert" />
 							<BucketsExpansionPanel ref="bucket-panel" :buckets="buckets" :images="images" @on-add-config-btn-clicked="onAddConfigBtnClicked" @on-add-config="onAddConfigApplyClicked" @-on-bucket-changed="onBucketChange" />
-							<RepairExpansionPanel ref="repair-panel" @on-resize-quality-changed="onResizeQualityChanged" />
+							<RepairExpansionPanel ref="repair-panel" @on-resize-quality-changed="onResizeQualityChanged" @on-sharpness-changed="onSharpnessChanged" />
 							<ShortcutExpansionPanel />
 						</VExpansionPanels>
 					</VRow>
@@ -253,7 +260,7 @@ const sidebarMenuExpansion = shallowRef([0, 1, 2, 3]);
 					<template v-slot:content v-if="selectedIndex !== -1">
 						<CropperWithPreview 
 							ref="cropper"
-							:img="images[selectedIndex]" 
+							:img="images[selectedIndex]"
 							:buckets="buckets"
 							@on-cropper-update="onCropperChange" 
 						/>

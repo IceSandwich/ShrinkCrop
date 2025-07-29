@@ -18,6 +18,7 @@ export interface Image {
 	crop: Rect;
 	bucket: number;
 	resizeQuality: ImageSmoothingQuality;
+	sharpness: number;
 }
 
 export interface Bucket {
@@ -108,22 +109,58 @@ export function applyImage(src: string, crop: Rect, targetSize: Size, resizeQual
 /**
  * 对base64图像或blob图像应用虚化蒙版
  */
-export function sharpenImage(src: string | Blob, strength: number) {
-	if (ctx == null) return null;
+export function sharpenImage(src: string, strength: number) {
+	const canvas = document.createElement('canvas');
+	const ctx = canvas.getContext('2d');
+	const img = new Image();
 
-	const processBase64Img = function (base64src: string) {
-		const img = new Image();
-		img.onload = function() {
-			
+	const promise = new Promise((resolve, reject) => {
+		if (ctx == null) {
+			reject("null ctx");
+			return;
 		}
-		img.src = base64src;
-	}
 
-	if (typeof src === typeof Blob) {
-		const reader = new FileReader();
-		reader.onload = () => processBase64Img(reader.result as string);
-		reader.readAsDataURL(src as Blob);
-	} else {
-		processBase64Img(src as string);
-	}
+		img.onload = () => {
+			canvas.width = img.width;
+			canvas.height = img.height;
+			ctx.filter = '';
+			ctx.drawImage(img, 0, 0);
+			const imageData = ctx.getImageData(0, 0, img.width, img.height);
+			const data = imageData.data;
+
+			// Apply a blur to the mask using a simple box blur or Gaussian blur approximation
+			ctx.filter = `blur(${strength}px)`;
+			ctx.drawImage(img, 0, 0);
+			const maskData = ctx.getImageData(0, 0, img.width, img.height).data;
+
+			// Apply the soft light blending (here a simple approximation)
+			for (let i = 0; i < data.length; i += 4) {
+                // Get the color values for original image and blurred mask
+                const r = data[i];     // Original Red
+                const g = data[i + 1]; // Original Green
+                const b = data[i + 2]; // Original Blue
+
+                const mr = maskData[i];     // Mask Red
+                const mg = maskData[i + 1]; // Mask Green
+                const mb = maskData[i + 2]; // Mask Blue
+
+                // Simple soft light blending
+                const sr = r * (1 - mr / 255) + mr;
+                const sg = g * (1 - mg / 255) + mg;
+                const sb = b * (1 - mb / 255) + mb;
+
+                // Apply the resulting color to the image data
+                data[i] = Math.min(255, sr);
+                data[i + 1] = Math.min(255, sg);
+                data[i + 2] = Math.min(255, sb);
+            }
+
+            // Put the modified image data back onto the canvas
+            ctx.putImageData(imageData, 0, 0);
+
+			resolve(canvas.toDataURL());
+		}
+		img.src = src;
+	});
+	return promise;
 }

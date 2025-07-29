@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { shallowRef } from 'vue';
-
+const emits = defineEmits<{
+	OnResizeQualityChanged: [val: ImageSmoothingQuality],
+	OnSharpnessChanged: [val: number],
+}>();
 const resizeQualityCombo = shallowRef<ImageSmoothingQuality[]>(['low', 'medium', 'high']);
-
 const resizeQuality = shallowRef<ImageSmoothingQuality>('low');
 function SetResizeQuality(val: ImageSmoothingQuality) {
 	resizeQuality.value = val;
@@ -11,13 +13,28 @@ function GetResizeQuality() {
 	return resizeQuality.value;
 }
 
+const sharpness = shallowRef(0);
+function SetSharpness(val: number) {
+	sharpness.value  = val;
+}
+function GetSharpness() {
+	return sharpness.value;
+}
+
+function onSharpnessChanged(val: number) {
+	emits("OnSharpnessChanged", val);
+}
+function onResizeQualityChanged(val: ImageSmoothingQuality) {
+	emits('OnResizeQualityChanged', val);
+}
+
 defineExpose({
 	SetResizeQuality, 
 	GetResizeQuality,
-})
-defineEmits<{
-	OnResizeQualityChanged: [val: ImageSmoothingQuality],
-}>();
+	SetSharpness,
+	GetSharpness,
+});
+
 </script>
 
 <template>
@@ -29,15 +46,13 @@ defineEmits<{
 				缩放方法：
 			</VRow>
 			<VRow>
-				<VSelect :items="resizeQualityCombo" v-model="resizeQuality" @update:model-value="$emit('OnResizeQualityChanged', resizeQuality)" />
+				<VSelect :items="resizeQualityCombo" v-model="resizeQuality" @update:model-value="onResizeQualityChanged" />
 			</VRow>
 			<VRow>
 				锐化:
 			</VRow>
 			<VRow>
-				<VSlider>
-
-				</VSlider>
+				<VSlider v-model="sharpness" :step="1" thumb-label="always" class="pt-9" @update:model-value="onSharpnessChanged" />
 			</VRow>
 		</VExpansionPanelText>
 	</VExpansionPanel>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, shallowRef, useTemplateRef } from 'vue';
-import { applyImage, type Bucket, type Image, type Rect, type Size } from './commons';
+import { applyImage, sharpenImage, type Bucket, type Image, type Rect, type Size } from './commons';
 import { Cropper, type CropperResult } from 'vue-advanced-cropper'
 const props = defineProps<{
 	img: Image,
@@ -54,11 +54,19 @@ function ShowPreview(enable: boolean, force: boolean = false) {
 		const crop = applyImage(props.img.src, props.img.crop, targetSize, props.img.resizeQuality, "base64");
 		if (crop == null) {
 			alert("cannot get preview image.");
-		} else {
-			crop.then((dataUrl) => {
-				showPreview.value = dataUrl as string;
-			})
+			return;
 		}
+
+		crop.then((dataUrl) => {
+			if (props.img.sharpness > 0) {
+				sharpenImage(dataUrl as string, props.img.sharpness).then((dataUrl2) => {
+					console.log("sharpen: ", props.img.sharpness);
+					showPreview.value = dataUrl2 as string;
+				});
+			} else {
+				showPreview.value = dataUrl as string;
+			}
+		})
 	} else {
 		showPreview.value  = null;
 	}
@@ -108,7 +116,8 @@ defineExpose({
 		<img :src="showPreview" />
 	</template>
 	<template v-else>
-		<Cropper class="cropper" :src="img.src" :stencil-props="cropperStencilProps" ref="cropper"
+		<Cropper class="cropper" :src="img.src"
+			:stencil-props="cropperStencilProps" ref="cropper"
 			@change="onCropperChange" :default-position="getCropperDefaultPosition"
 			:default-size="getCropperDefaultSize" />
 	</template>
