@@ -9,7 +9,7 @@ import ShortcutExpansionPanel from './components/ExpansionPanels/Shortcut.vue';
 import BucketsExpansionPanel from './components/ExpansionPanels/Buckets.vue';
 import RepairExpansionPanel from './components/ExpansionPanels/Repair.vue';
 import DeleteDialog from './components/DeleteDialog.vue';
-import type { Image, Bucket, Rect, Size, ExportData } from './components/commons';
+import type { Image, Bucket, Rect, Size, ExportDataV2, ExportDataV1 } from './components/commons';
 import { applyImage, calculateAspectRatio, calculateDefaultCrop } from './components/commons';
 import JSZip from 'jszip';
 
@@ -114,6 +114,55 @@ function onFileAdded(files: File[]) {
 		reader.readAsDataURL(file);
 	});
 }
+type KVObj = { [key: string]: any };
+function onProjectFileAdded(files: File[]) {
+	const file = files[0];
+	const reader = new FileReader();
+	reader.onload = function() {
+		const prj: KVObj = JSON.parse(reader.result as string);
+		let notUsed = 0;
+		Object.entries(prj).forEach(([key, value]) => {
+			const oldData: ExportDataV1 = value;
+			const index = images.value.findIndex((v) => v.title === key);
+			if (index <= -1) {
+				notUsed = notUsed + 1;
+				return;
+			}
+			const img = images.value[index];
+			if (img.width != oldData.srcWidth || img.height!= oldData.srcHeight) {
+				console.error(`Image size mismatch: file=${key} prjSize=${oldData.srcWidth}x${oldData.srcHeight} loadedSize=${img.width}x${img.height}`);
+				return;
+			}
+			img.crop.x = oldData.cropX;
+			img.crop.y = oldData.cropY;
+			img.crop.width = oldData.cropWidth;
+			img.crop.height = oldData.cropHeight;
+			if (oldData.bucket) {
+				const bucketIndex = buckets.value.findIndex((v) => v.size.width == oldData.bucket!.size.width && v.size.height == oldData.bucket!.size.height);
+				if (bucketIndex >= 0) {
+					img.bucket = bucketIndex;
+				} else {
+					buckets.value.push(oldData.bucket);
+					img.bucket = buckets.value.length - 1;
+				}
+			}
+
+			if ("resizeQuality" in value) {
+				img.resizeQuality = (value as ExportDataV2).resizeQuality;
+			}
+			if ("sharpness" in value) {
+				img.sharpness = (value as ExportDataV2).sharpness;
+			}
+
+			images.value[index] = img;
+		});
+		// onImageChange(selectedIndex.value);
+		if (notUsed != 0) {
+			alert(`Unused files: ${notUsed}`);
+		}
+	}
+	reader.readAsText(file);
+}
 async function exportAsZip() {
 	updateCropCoordinates();
 
@@ -142,20 +191,27 @@ async function exportAsZip() {
 		}
 	}
 
-	let mapping: { [key: string]: ExportData } = {}
+	let mapping: { [key: string]: ExportDataV2 } = {}
 	Promise.all(cropperPromise).then((val) => {
 		val.forEach((data, i) => {
 			const img = images.value[cropperIndex[i]];
 			zip.file(`${img.title}.png`, data as Blob);
 
+			let bucket: Bucket | null = null;
+			if (img.bucket != -1) {
+				bucket = buckets.value[img.bucket];
+			}
+
 			mapping[img.title] = {
 				srcWidth: img.width,
 				srcHeight: img.height,
-				cropX: img.crop?.x,
-				cropY: img.crop?.y,
-				cropWidth: img.crop?.width,
-				cropHeight: img.crop?.height,
-				bucket: img.bucket == -1 ? null : buckets.value[img.bucket],
+				cropX: img.crop.x,
+				cropY: img.crop.y,
+				cropWidth: img.crop.width,
+				cropHeight: img.crop.height,
+				bucket: bucket,
+				resizeQuality: img.resizeQuality,
+				sharpness: img.sharpness,
 			}
 		});
 	}).then(() => {
@@ -238,6 +294,9 @@ const sidebarMenuExpansion = shallowRef([0, 1, 2, 3]);
 				<VContainer>
 					<VRow class="mb-5">
 						<UploadBtn multiple accept="image/*" prepend-icon="mdi-plus" @on-select-files="onFileAdded" color="teal-darken-3">添加图片</UploadBtn>
+					</VRow>
+					<VRow class="mb-5">
+						<UploadBtn accept="application/json" prepend-icon="mdi-plus" @on-select-files="onProjectFileAdded" color="teal-darken-3">导入配置</UploadBtn>
 					</VRow>
 					<VRow class="mb-5">
 						<VBtn class="w-100" prepend-icon="mdi-export" @click="exportAsZip">导出</VBtn>

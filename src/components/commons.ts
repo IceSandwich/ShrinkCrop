@@ -26,7 +26,7 @@ export interface Bucket {
 	ratio: Size;
 }
 
-export interface ExportData {
+export interface ExportDataV1 {
 	srcWidth: number,
 	srcHeight: number,
 	cropX: number,
@@ -35,6 +35,12 @@ export interface ExportData {
 	cropHeight: number,
 	bucket: Bucket | null,
 }
+
+export interface ExportDataV2 extends ExportDataV1 {
+	resizeQuality: ImageSmoothingQuality;
+	sharpness: number;
+}
+
 
 export function calculateAspectRatio(width: number, height: number): Size {
     // 计算最大公约数 (GCD)
