@@ -58,9 +58,9 @@ function ShowPreview(enable: boolean, force: boolean = false) {
 		}
 
 		crop.then((dataUrl) => {
-			if (props.img.sharpness > 0) {
-				sharpenImage(dataUrl as string, props.img.sharpness).then((dataUrl2) => {
-					console.log("sharpen: ", props.img.sharpness);
+			if (props.img.sharpnessRadius > 0 || props.img.sharpnessStrength > 0) {
+				sharpenImage(dataUrl as string, props.img.sharpnessRadius, props.img.sharpnessStrength).then((dataUrl2) => {
+					console.log("sharpen: ", props.img.sharpnessRadius, props.img.sharpnessStrength);
 					showPreview.value = dataUrl2 as string;
 				});
 			} else {

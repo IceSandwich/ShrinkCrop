@@ -18,7 +18,8 @@ export interface Image {
 	crop: Rect;
 	bucket: number;
 	resizeQuality: ImageSmoothingQuality;
-	sharpness: number;
+	sharpnessRadius: number;
+	sharpnessStrength: number;
 }
 
 export interface Bucket {
@@ -38,7 +39,8 @@ export interface ExportDataV1 {
 
 export interface ExportDataV2 extends ExportDataV1 {
 	resizeQuality: ImageSmoothingQuality;
-	sharpness: number;
+	sharpnessRadius: number;
+	sharpnessStrength: number;
 }
 
 
@@ -112,10 +114,100 @@ export function applyImage(src: string, crop: Rect, targetSize: Size, resizeQual
 	return promise;
 }
 
+// Helper function to apply Gaussian Blur to the image (simplified)
+function applyGaussianBlur(imageData: ImageData, radius: number) {
+	const width = imageData.width, height = imageData.height;
+	const kernelSize = 2 * radius + 1;
+	const kernel = createGaussianKernel(radius);
+
+	const output = new ImageData(width, height);
+	const data = imageData.data;
+	const resultData = output.data;
+
+	// Apply the kernel to each pixel
+	for (let y = 0; y < height; y++) {
+		for (let x = 0; x < width; x++) {
+			let r = 0, g = 0, b = 0, a = 0;
+			for (let ky = -radius; ky <= radius; ky++) {
+				for (let kx = -radius; kx <= radius; kx++) {
+					const nx = x + kx;
+					const ny = y + ky;
+					if (nx >= 0 && ny >= 0 && nx < width && ny < height) {
+						const weight = kernel[ky + radius][kx + radius];
+						const idx = (ny * width + nx) * 4;
+						r += data[idx] * weight;
+						g += data[idx + 1] * weight;
+						b += data[idx + 2] * weight;
+						a += data[idx + 3] * weight;
+					}
+				}
+			}
+			const idx = (y * width + x) * 4;
+			resultData[idx] = r;
+			resultData[idx + 1] = g;
+			resultData[idx + 2] = b;
+			resultData[idx + 3] = a;
+		}
+	}
+
+	return output;
+}
+
+// Helper function to create Gaussian kernel
+function createGaussianKernel(radius: number) {
+	const size = 2 * radius + 1;
+	const kernel = Array(size).fill().map(() => Array(size).fill(0));
+
+	const sigma = radius / 3;
+	const twoSigma2 = 2 * sigma * sigma;
+	const sigmaPi = Math.PI * twoSigma2;
+	let sum = 0;
+
+	for (let y = -radius; y <= radius; y++) {
+		for (let x = -radius; x <= radius; x++) {
+			const value = Math.exp(-(x * x + y * y) / twoSigma2) / sigmaPi;
+			kernel[y + radius][x + radius] = value;
+			sum += value;
+		}
+	}
+
+	// Normalize the kernel
+	for (let y = 0; y < size; y++) {
+		for (let x = 0; x < size; x++) {
+			kernel[y][x] /= sum;
+		}
+	}
+
+	return kernel;
+}
+
+// Main function for Unsharp Masking
+function unsharpMask(imageData: ImageData, radius: number, strength: number) {
+	const blurredData = applyGaussianBlur(imageData, radius);
+	const output = new ImageData(imageData.width, imageData.height);
+	const data = imageData.data;
+	const blurred = blurredData.data;
+	const resultData = output.data;
+
+	// Subtract the blurred image and add the mask back
+	for (let i = 0; i < data.length; i += 4) {
+		const diffR = data[i] - blurred[i];
+		const diffG = data[i + 1] - blurred[i + 1];
+		const diffB = data[i + 2] - blurred[i + 2];
+
+		resultData[i] = Math.min(255, Math.max(0, data[i] + strength * diffR));
+		resultData[i + 1] = Math.min(255, Math.max(0, data[i + 1] + strength * diffG));
+		resultData[i + 2] = Math.min(255, Math.max(0, data[i + 2] + strength * diffB));
+		resultData[i + 3] = data[i + 3]; // Keep alpha channel unchanged
+	}
+
+	return output;
+}
+
 /**
  * 对base64图像或blob图像应用虚化蒙版
  */
-export function sharpenImage(src: string, strength: number) {
+export function sharpenImage(src: string, radius: number, strength: number) {
 	const canvas = document.createElement('canvas');
 	const ctx = canvas.getContext('2d');
 	const img = new Image();
@@ -134,32 +226,24 @@ export function sharpenImage(src: string, strength: number) {
 			const imageData = ctx.getImageData(0, 0, img.width, img.height);
 			const data = imageData.data;
 
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+
 			// Apply a blur to the mask using a simple box blur or Gaussian blur approximation
-			ctx.filter = `blur(${strength}px)`;
+			ctx.filter = `blur(${radius}px)`;
 			ctx.drawImage(img, 0, 0);
-			const maskData = ctx.getImageData(0, 0, img.width, img.height).data;
+			const blurred = ctx.getImageData(0, 0, img.width, img.height).data;
 
-			// Apply the soft light blending (here a simple approximation)
+			// Subtract the blurred image and add the mask back
 			for (let i = 0; i < data.length; i += 4) {
-                // Get the color values for original image and blurred mask
-                const r = data[i];     // Original Red
-                const g = data[i + 1]; // Original Green
-                const b = data[i + 2]; // Original Blue
+				const diffR = data[i] - blurred[i];
+				const diffG = data[i + 1] - blurred[i + 1];
+				const diffB = data[i + 2] - blurred[i + 2];
 
-                const mr = maskData[i];     // Mask Red
-                const mg = maskData[i + 1]; // Mask Green
-                const mb = maskData[i + 2]; // Mask Blue
-
-                // Simple soft light blending
-                const sr = r * (1 - mr / 255) + mr;
-                const sg = g * (1 - mg / 255) + mg;
-                const sb = b * (1 - mb / 255) + mb;
-
-                // Apply the resulting color to the image data
-                data[i] = Math.min(255, sr);
-                data[i + 1] = Math.min(255, sg);
-                data[i + 2] = Math.min(255, sb);
-            }
+				data[i] = Math.min(255, Math.max(0, data[i] + strength * diffR));
+				data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + strength * diffG));
+				data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + strength * diffB));
+				data[i + 3] = data[i + 3]; // Keep alpha channel unchanged
+			}
 
             // Put the modified image data back onto the canvas
             ctx.putImageData(imageData, 0, 0);
