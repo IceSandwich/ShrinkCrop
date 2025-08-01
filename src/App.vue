@@ -35,7 +35,7 @@ function onImageChange(index: number) {
 	cropper.value?.ShowPreview(false);
 	selectedIndex.value = index;
 	repairPanel.value?.SetResizeQuality(images.value[index].resizeQuality);
-	repairPanel.value?.SetSharpness(images.value[index].sharpness);
+	repairPanel.value?.SetSharpness(images.value[index].sharpnessRadius, images.value[index].sharpnessStrength);
 	bucketPanel.value?.SetBucketId(images.value[index].bucket);
 }
 
@@ -105,7 +105,8 @@ function onFileAdded(files: File[]) {
 					crop: defaultCrop,
 					bucket: -1,
 					resizeQuality: "medium",
-					sharpness: 0,
+					sharpnessRadius: 0,
+					sharpnessStrength: 0,
 				};
 				images.value = [...images.value, append];
 			}
@@ -150,8 +151,9 @@ function onProjectFileAdded(files: File[]) {
 			if ("resizeQuality" in value) {
 				img.resizeQuality = (value as ExportDataV2).resizeQuality;
 			}
-			if ("sharpness" in value) {
-				img.sharpness = (value as ExportDataV2).sharpness;
+			if ("sharpnessRadius" in value && "sharpnessStrength" in value) {
+				img.sharpnessRadius = (value as ExportDataV2).sharpnessRadius;
+				img.sharpnessStrength = (value as ExportDataV2).sharpnessStrength;
 			}
 
 			images.value[index] = img;
@@ -211,7 +213,8 @@ async function exportAsZip() {
 				cropHeight: img.crop.height,
 				bucket: bucket,
 				resizeQuality: img.resizeQuality,
-				sharpness: img.sharpness,
+				sharpnessRadius: img.sharpnessRadius,
+				sharpnessStrength: img.sharpnessStrength,
 			}
 		});
 	}).then(() => {
@@ -232,9 +235,10 @@ function onResizeQualityChanged(val: ImageSmoothingQuality) {
 	images.value[selectedIndex.value].resizeQuality = val;
 	cropper.value?.Refresh();
 }
-function onSharpnessChanged(val: number) {
-	console.log(">>>>", val);
-	images.value[selectedIndex.value].sharpness = val;
+function onSharpnessChanged(radius: number, strength: number) {
+	console.log(">>>>", radius, strength);
+	images.value[selectedIndex.value].sharpnessRadius = radius;
+	images.value[selectedIndex.value].sharpnessStrength = strength;
 	cropper.value?.Refresh();
 }
 
