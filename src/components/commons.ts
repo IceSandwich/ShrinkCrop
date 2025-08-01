@@ -114,6 +114,7 @@ export function applyImage(src: string, crop: Rect, targetSize: Size, resizeQual
 	return promise;
 }
 
+/*
 // Helper function to apply Gaussian Blur to the image (simplified)
 function applyGaussianBlur(imageData: ImageData, radius: number) {
 	const width = imageData.width, height = imageData.height;
@@ -203,6 +204,7 @@ function unsharpMask(imageData: ImageData, radius: number, strength: number) {
 
 	return output;
 }
+*/
 
 /**
  * 对base64图像或blob图像应用虚化蒙版
