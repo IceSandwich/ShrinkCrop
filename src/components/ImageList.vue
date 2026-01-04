@@ -1,10 +1,7 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
+import type { ImageItem } from '@/utils/Types';
+import { computed, onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
 
-interface ImageItem {
-	src: string;
-	title: string;
-}
 const props = defineProps<{
 	items: ImageItem[]
 }>()
@@ -12,6 +9,7 @@ const emits = defineEmits<{
 	change: [id: number],
 }>();
 const imageItems = useTemplateRef("imageItems");
+const imageList = useTemplateRef("imageList");
 
 let curid = ref(-1);
 function onClick(e: MouseEvent) {
@@ -57,12 +55,20 @@ function SetID(id: number) {
 	console.log("===>", curid.value);
 }
 
+function onWheel(e: WheelEvent) {
+	if (e.deltaY === 0) return;
+    e.preventDefault();
+    imageList.value!.scrollLeft += e.deltaY;
+}
+
 onMounted(() => {
 	document.addEventListener("keydown", onArrowKey);
+	imageList.value?.addEventListener("wheel", onWheel, { passive: false });
 })
 
 onUnmounted(() => {
 	document.removeEventListener("keydown", onArrowKey);
+	imageList.value?.removeEventListener("wheel", onWheel);
 });
 
 defineExpose({
@@ -71,10 +77,11 @@ defineExpose({
 </script>
 
 <template>
-	<div class="image-list-bar" id="imageList">
+	<div class="image-list-bar" ref="imageList">
 		<div class="image-item" :data-id="index" v-for="item, index in items" @click="onClick" ref="imageItems" :class="{ selected: index === curid }">
-			<img :src="item.src">
-			<div>{{ item.title }}</div>
+			<img :src="item.imgurl">
+			<div>{{ item.filename }}</div>
+			<VIcon class="badge elevation-5" v-if="item.cachedHasCrop" :icon="item.cachedHasUpscale ? 'mdi-pail-plus' : 'mdi-pail'" :class="item.cachedHasUpscale ? 'pail-plus-badge' : 'pail-badge'"></VIcon>
 		</div>
 	</div>
 </template>
@@ -92,6 +99,7 @@ defineExpose({
 
 
 .image-item {
+	position: relative;
 	display: inline-block;
 	text-align: center;
 	margin-right: 10px;
@@ -114,5 +122,22 @@ defineExpose({
 .image-item.selected {
 	border-color: #007bffb0;
 	background-color: #e6f0ff5e;
+}
+
+.badge {
+	position: absolute;
+	border-radius: 50%;
+	padding: 18px;
+	color: white;
+	top: -6px;
+	right: -8px;
+}
+
+.pail-badge {
+	background-color: #007bffb0;
+}
+
+.pail-plus-badge {
+	background-color: #ff1e00b0;
 }
 </style>

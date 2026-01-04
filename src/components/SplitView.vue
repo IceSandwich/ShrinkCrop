@@ -98,6 +98,6 @@ function onResizerMouseUp(e: MouseEvent) {
 	flex-direction: column;
 	/* background-color: #ffffff; */
 	overflow: hidden;
-	padding: 18px;
+	/* padding: 18px; */
 }
 </style>
