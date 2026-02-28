@@ -1,7 +1,6 @@
 ﻿<script lang="ts" setup>
-import type { Bucket, ImageItem } from '@/utils/Types';
-import { onMounted, onUnmounted, useTemplateRef, type Ref } from 'vue';
-import type { Rect } from './commons';
+import type { Bucket, ImageItem, Rect } from '@/utils/Types';
+import { onMounted, onUnmounted, useTemplateRef } from 'vue';
 import { CalcHeightWithRatio, CalcRatio, CalcWidthWidthRatio, Clamp } from '@/utils/Functions';
 const props = defineProps<{
 	buckets: Map<string, Bucket>,

@@ -7,7 +7,6 @@ import { DownloadFile, OpenFileDialog, PackAsZIP, ReadAsImage, ReadAsJson, type 
 import type { Bucket, CropRect, ImageItem, Project, ProjectImageData, Rect } from './utils/Types';
 import { CalculateDefaultCrop, CropImageAsBlob, FindJsonInFileList, HasBucket, HasUpscale } from './utils/Functions';
 import Cropper from './components/Cropper.vue';
-import { remove } from 'jszip';
 
 let images = ref<ImageItem[]>([]);
 const imglist = useTemplateRef("imglist");
@@ -191,7 +190,7 @@ function onBeforeUnload(e: BeforeUnloadEvent) {
 }
 
 function onGithubClicked() {
-	window.open("https://icesandwich.github.io/ShrinkCrop", "_blank");
+	window.open("https://github.com/IceSandwich/ShrinkCrop", "_blank");
 }
 
 onMounted(() => {
