@@ -90,9 +90,90 @@ export function PackAsZIP(files: Map<string, Blob | string>) {
 	return zip.generateAsync({type: "blob"});
 }
 
-export function DownloadFile(name: string, file: Blob) {
-	const link = document.createElement("a");
-	link.href = URL.createObjectURL(file);
-	link.download = name;
-	link.click();
+export async function GetFileInStore(storeName: string, filename: string): Promise<Uint8Array | null> {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('ModelDB', 1);
+
+        request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains(storeName)) {
+                db.createObjectStore(storeName);
+            }
+        };
+
+        request.onsuccess = () => {
+            const db = request.result;
+            const tx = db.transaction(storeName, 'readonly');
+            const store = tx.objectStore(storeName);
+            const getRequest = store.get(filename);
+
+            getRequest.onsuccess = () => {
+                if (getRequest.result) {
+                    resolve(getRequest.result as Uint8Array);
+                } else {
+                    resolve(null);
+                }
+            };
+
+            getRequest.onerror = () => reject(getRequest.error);
+        };
+
+        request.onerror = () => reject(request.error);
+    });
+}
+
+export async function GetTextInStore(storeName: string, filename: string): Promise<string | null> {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('ModelDB', 1);
+
+        request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains(storeName)) {
+                db.createObjectStore(storeName);
+            }
+        };
+
+        request.onsuccess = () => {
+            const db = request.result;
+            const tx = db.transaction(storeName, 'readonly');
+            const store = tx.objectStore(storeName);
+            const getRequest = store.get(filename);
+
+            getRequest.onsuccess = () => {
+                if (getRequest.result) {
+                    resolve(getRequest.result as string);
+                } else {
+                    resolve(null);
+                }
+            };
+
+            getRequest.onerror = () => reject(getRequest.error);
+        };
+
+        request.onerror = () => reject(request.error);
+    });
+}
+
+export async function SaveToStorage(storeName: string, filename: string, content: Uint8Array | string): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('ModelDB', 1);
+
+        request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains(storeName)) {
+                db.createObjectStore(storeName);
+            }
+        };
+
+        request.onsuccess = () => {
+            const db = request.result;
+            const tx = db.transaction(storeName, 'readwrite');
+            const store = tx.objectStore(storeName);
+            store.put(content, filename);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        };
+
+        request.onerror = () => reject(request.error);
+    });
 }

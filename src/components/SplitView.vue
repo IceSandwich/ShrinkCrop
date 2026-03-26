@@ -49,7 +49,7 @@ function onResizerMouseUp(e: MouseEvent) {
 		<div class="resizer" :class="vertical ? 'resizer-vertical' : 'resizer-horizontal'" id="resizer"
 			@mousedown="onResizerMouseDown" v-if="!disableHandler"></div>
 
-		<div class="content">
+		<div class="overflow-auto">
 			<slot name="content"></slot>
 		</div>
 	</div>
@@ -97,7 +97,7 @@ function onResizerMouseUp(e: MouseEvent) {
 	display: flex;
 	flex-direction: column;
 	/* background-color: #ffffff; */
-	overflow: hidden;
+	overflow: auto;
 	/* padding: 18px; */
 }
 </style>

@@ -26,6 +26,8 @@ export interface ImageItem {
 	crops: CropRect[];
 	cachedHasCrop: boolean,
 	cachedHasUpscale: boolean,
+	srcTags: string[];
+	selectedTags: string[];
 }
 
 
