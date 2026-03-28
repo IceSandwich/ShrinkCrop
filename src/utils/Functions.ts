@@ -1,5 +1,6 @@
 ﻿import { Md5 } from "ts-md5";
 import type { Bucket, CropRect, ImageItem, Rect, Size } from "./Types";
+import pica from "pica";
 
 export function FindJsonInFileList(filelist: File[]) {
 	let ret: number[] = [];
@@ -164,5 +165,41 @@ export function CalculateImageMD5(imgUrl: string): Promise<string> {
 			reject(e);
 		}
 		img.src = imgUrl;
+	});
+}
+
+let picaInstance = pica();
+
+export function PicaCropResize(imgUrl: string, x: number, y: number, w: number, h: number, tw: number, th: number): Promise<Blob> {
+	return new Promise<HTMLCanvasElement>((resolve, reject) => {
+		const canvas = document.createElement('canvas');
+		const ctx = canvas.getContext('2d');
+		if (ctx == null) {
+			reject(`cannot create context`);
+			return;
+		}
+		const img = new Image();
+
+		img.onload = function () {
+			canvas.width = tw;
+			canvas.height = th;
+			ctx.drawImage(img, x, y, w, h, 0, 0, tw, th);
+
+			resolve(canvas);
+		}
+		img.onerror = function (e) {
+			reject(e);
+		}
+		img.src = imgUrl;
+	}).then((canvas) => {
+		const destCanvas = document.createElement('canvas');
+		destCanvas.width = tw;
+		destCanvas.height = th;
+
+		return picaInstance.resize(canvas, destCanvas, {
+			quality: 3,   // ⭐ Lanczos3
+		});
+	}).then((canvas) => {
+		return picaInstance.toBlob(canvas, "image/png")
 	});
 }

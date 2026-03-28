@@ -6,7 +6,7 @@ import BucketsExpansionPanels from './components/ExpansionPanels/Buckets.vue';
 import TagsExpansionPanels from './components/ExpansionPanels/Tags.vue';
 import { OpenFileDialog, PackAsZIP, ReadAsImage, ReadAsJson } from './utils/FileSystem';
 import type { Bucket, CropRectWithTags, ImageItem, Project, ProjectImageData } from './utils/Types';
-import { CalculateDefaultCrop, CalculateImageMD5, CropImageAsBase64, CropImageAsBlob, HasBucket, HasUpscale, MergeUniqueArrays, TxtAsBlob } from './utils/Functions';
+import { CalculateDefaultCrop, CalculateImageMD5, CropImageAsBase64, HasBucket, HasUpscale, MergeUniqueArrays, PicaCropResize, TxtAsBlob } from './utils/Functions';
 import Cropper from './components/Cropper.vue';
 import { InvokeUserDownloadFile } from './utils/Network';
 import ModelDialog from './components/ModelDialog.vue';
@@ -182,7 +182,8 @@ async function onExportClicked() {
 				selectedTags: crop.selectedTags,
 			}],
 		})
-		zipfile.set(`captions/${name}.png`, await CropImageAsBlob(v.imgurl, crop.x, crop.y, crop.width, crop.height, tw, th));
+		const croped = await PicaCropResize(v.imgurl, crop.x, crop.y, crop.width, crop.height, crop.width, crop.height);
+		zipfile.set(`captions/${name}.png`, croped);
 
 		const txt = TxtAsBlob(crop.selectedTags.join(", "));
 		zipfile.set(`captions/${name}.txt`, txt);
