@@ -138,9 +138,31 @@ export function MergeUniqueArrays<T>(arr1: T[], arr2: T[]): T[] {
 
 /**
  * 计算字符串的MD5哈希值
- * @param input 需要计算MD5的字符串
+ * @param imgUrl blob url
  * @returns MD5哈希值
  */
-export function CalculateMD5(input: string): string {
-  return Md5.hashStr(input);
+export function CalculateImageMD5(imgUrl: string): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const canvas = document.createElement('canvas');
+		const ctx = canvas.getContext("2d");
+		if (ctx == null) {
+			reject(`cannot create context`);
+			return;
+		}
+		const img = new Image();
+
+		img.onload = function () {
+			canvas.width = img.width;
+			canvas.height = img.height;
+			ctx.drawImage(img, 0, 0);
+
+			const base64 = canvas.toDataURL("image/png");
+			const md5 = Md5.hashStr(base64);
+			resolve(md5);
+		}
+		img.onerror = function (e) {
+			reject(e);
+		}
+		img.src = imgUrl;
+	});
 }

@@ -6,7 +6,7 @@ import BucketsExpansionPanels from './components/ExpansionPanels/Buckets.vue';
 import TagsExpansionPanels from './components/ExpansionPanels/Tags.vue';
 import { OpenFileDialog, PackAsZIP, ReadAsImage, ReadAsJson } from './utils/FileSystem';
 import type { Bucket, CropRectWithTags, ImageItem, Project, ProjectImageData } from './utils/Types';
-import { CalculateDefaultCrop, CalculateMD5, CropImageAsBase64, CropImageAsBlob, HasBucket, HasUpscale, MergeUniqueArrays, TxtAsBlob } from './utils/Functions';
+import { CalculateDefaultCrop, CalculateImageMD5, CropImageAsBase64, CropImageAsBlob, HasBucket, HasUpscale, MergeUniqueArrays, TxtAsBlob } from './utils/Functions';
 import Cropper from './components/Cropper.vue';
 import { InvokeUserDownloadFile } from './utils/Network';
 import ModelDialog from './components/ModelDialog.vue';
@@ -27,7 +27,8 @@ function onImportClicked() {
 	OpenFileDialog("image/*", true, async function (filelist) {
 		const imgs = await Promise.all(filelist.map((v, i) => ReadAsImage(v)))
 
-		imgs.forEach((v, i) => {
+		for (var i = 0; i < imgs.length; i++) {
+			const v = imgs[i];
 			let crops: CropRectWithTags[] = [{
 				...CalculateDefaultCrop({
 					width: v.img.naturalWidth,
@@ -38,7 +39,7 @@ function onImportClicked() {
 				selectedTags: [],
 			}];
 			images.value.push({
-				md5: CalculateMD5(v.url),
+				md5: await CalculateImageMD5(v.url),
 				imgurl: v.url,
 				filename: v.filename,
 				width: v.img.naturalWidth,
@@ -47,7 +48,7 @@ function onImportClicked() {
 				cachedHasCrop: false,
 				cachedHasUpscale: false,
 			});
-		});
+		}
 
 		if (imgIndex.value === -1) {
 			imglist.value?.SetID(0);
