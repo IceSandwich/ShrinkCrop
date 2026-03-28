@@ -54,6 +54,10 @@ export function CropImageAsBlob(imgUrl: string, x: number, y: number, w: number,
 	})
 }
 
+export function TxtAsBlob(content: string, mimeType: string = 'text/plain'): Blob {
+  return new Blob([content], { type: mimeType });
+}
+
 export function CalculateDefaultCrop(size: Size, ratio: number = 0.8): Rect {
 	const cropWidth = Math.floor(size.width * ratio);
 	const cropHeight = Math.floor(size.height * ratio);

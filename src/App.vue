@@ -6,7 +6,7 @@ import BucketsExpansionPanels from './components/ExpansionPanels/Buckets.vue';
 import TagsExpansionPanels from './components/ExpansionPanels/Tags.vue';
 import { OpenFileDialog, PackAsZIP, ReadAsImage, ReadAsJson } from './utils/FileSystem';
 import type { Bucket, CropRectWithTags, ImageItem, Project, ProjectImageData } from './utils/Types';
-import { CalculateDefaultCrop, CalculateMD5, CropImageAsBase64, CropImageAsBlob, HasBucket, HasUpscale, MergeUniqueArrays } from './utils/Functions';
+import { CalculateDefaultCrop, CalculateMD5, CropImageAsBase64, CropImageAsBlob, HasBucket, HasUpscale, MergeUniqueArrays, TxtAsBlob } from './utils/Functions';
 import Cropper from './components/Cropper.vue';
 import { InvokeUserDownloadFile } from './utils/Network';
 import ModelDialog from './components/ModelDialog.vue';
@@ -167,7 +167,7 @@ async function onExportClicked() {
 				}
 			}
 		}
-		const name = `img${j}.png`;
+		const name = `img${j}`;
 		prjfiles.push({
 			filename: name,
 			md5: v.md5,
@@ -181,7 +181,10 @@ async function onExportClicked() {
 				selectedTags: crop.selectedTags,
 			}],
 		})
-		zipfile.set(`images/${name}`, await CropImageAsBlob(v.imgurl, crop.x, crop.y, crop.width, crop.height, tw, th));
+		zipfile.set(`captions/${name}.png`, await CropImageAsBlob(v.imgurl, crop.x, crop.y, crop.width, crop.height, tw, th));
+
+		const txt = TxtAsBlob(crop.selectedTags.join(", "));
+		zipfile.set(`captions/${name}.txt`, txt);
 	}
 	let prj: Project = {
 		metadata: {
