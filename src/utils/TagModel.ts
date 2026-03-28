@@ -1,6 +1,5 @@
 import * as ort from "onnxruntime-web/all";
-import { ref, type Ref } from "vue";
-import { column } from "vuetify/lib/components/VCalendar/modes/column.mjs";
+import { computed, isProxy, ref, toRaw } from "vue";
 
 export interface ModelTensorInfo {
     input_width: number;
@@ -32,9 +31,14 @@ export class TagModel {
         console.log(`Loaded ${this.tags.length} tags.`)
     }
 
-    async InferTags(input: string | Float32Array | ort.Tensor, thresh = 0.3485) {
+    async Release() {
+        await this.session.release();
+        console.log("Unloaded model");
+    }
+
+    async InferTags(input: string | Float32Array | ort.Tensor, thresh = 0.3485, alertNan = true) {
         const infer = await this.infer(input);
-        return this.fetchTags(infer, thresh)
+        return this.fetchTags(infer, thresh, alertNan)
     }
 
     async infer(inputData: string | Float32Array | ort.Tensor): Promise<Float32Array> {
@@ -69,18 +73,24 @@ export class TagModel {
 		return (outputData) as Float32Array;
 	}
 
-    fetchTags(infer: Float32Array, thresh = 0.3485) {
+    fetchTags(infer: Float32Array, thresh = 0.3485, alertNan = true) {
         let result: TagResult[] = [];
-        this.tags.forEach((value, idx) => {
-            if (value.category == 9) return;
-            if (infer[idx] < thresh) return;
+        for (var idx = 0; idx < this.tags.length; idx++) {
+            const value = this.tags[idx];
+            if (value.category  == 9) continue;
+            if (isNaN(infer[idx])) {
+                if (alertNan) {
+                    alert("infer result has nan! unknown reason, try again!");
+                }
+                return result;
+            }
+            if (infer[idx] < thresh) continue;
 
             result.push({
-                name: value.name.replace('_', ' '),
+                name: value.name.replace(/_/g, ' '),
                 prob: infer[idx],
             })
-        })
-
+        }
 		return result;
 	}
 
@@ -209,28 +219,74 @@ export async function CreateTagModel(model: Uint8Array, tagContent: string, io: 
     readSavedCategory();
     return new TagModel(vaules[0], vaules[1], io);
 }
-
-export interface TagItem {
-    name: string;
-}
-
 export interface CategoryTags {
     name: string;
-    tags: TagItem[];
+    tags: string[];
 }
 
 export interface SavedCategory {
     categories: CategoryTags[];
-    unwanted: TagItem[];
+    unwanted: string[];
 }
 
-export let SavedCategoryInstance = ref<SavedCategory | null>(null);
+function deproxy<T>(p: T): T {
+    if (isProxy(p)) {
+        return toRaw(p as any).name;
+    }
+    return p;
+}
+
+let savedCategoryInstance = ref<SavedCategory | null>(null);
+export let TagPool = ref<string[]>([]);
+export const DisplayCategory = computed(() => {
+    console.log(`update display category`, savedCategoryInstance.value, TagPool.value);
+    if (savedCategoryInstance.value == null) return null;
+
+    let cat: CategoryTags[] = savedCategoryInstance.value!.categories.map(v => {
+		return {
+			name: v.name,
+			tags: [],
+		}
+	})
+	const uncatindex = cat.push({ name: 'uncat', tags: [] }) - 1;
+
+	TagPool.value.forEach((tag) => {
+        const dst = tag.toLowerCase();
+        if (savedCategoryInstance.value?.unwanted.findIndex(v => {
+            const src = deproxy(v).toLowerCase();
+            return src == dst;
+        }) != -1) {
+            return;
+        }
+
+		var used = false;
+		for (let i = 0; i < savedCategoryInstance.value!.categories.length; i++) {
+			if (savedCategoryInstance.value!.categories[i].tags.findIndex(v => {
+                const src = deproxy(v).toLowerCase();
+                return src == dst;
+            }) != -1) {
+				cat[i].tags.push(tag)
+				used = true
+				break
+			}
+		}
+
+		if (!used) {
+			cat[uncatindex].tags.push(tag)
+		}
+	})
+    console.log("ret display category:", cat)
+
+    cat = cat.filter(v => v.tags.length > 0)
+
+	return cat
+});
 
 function readSavedCategory() {
     const data = localStorage.getItem('tagConfig')
     if (data) {
         const parsed: SavedCategory = JSON.parse(data)
-        SavedCategoryInstance.value = parsed
+        savedCategoryInstance.value = parsed
     } else {
         UpdateSavedCategory({
             categories: [],
@@ -240,16 +296,14 @@ function readSavedCategory() {
 }
 
 export function GetSavedCategoryCopy() {
-    if (SavedCategoryInstance.value == null) {
+    if (savedCategoryInstance.value == null) {
         return null;
     }
-    return JSON.parse(JSON.stringify(SavedCategoryInstance.value));
+    return JSON.parse(JSON.stringify(savedCategoryInstance.value));
 }
 
 export function UpdateSavedCategory(newCategory: SavedCategory) {
-    SavedCategoryInstance.value = JSON.parse(JSON.stringify(newCategory));
-    console.log(SavedCategoryInstance, newCategory);
-    localStorage.setItem('tagConfig', JSON.stringify(SavedCategoryInstance.value));
+    savedCategoryInstance.value = JSON.parse(JSON.stringify(newCategory));
+    console.log(savedCategoryInstance.value, newCategory);
+    localStorage.setItem('tagConfig', JSON.stringify(savedCategoryInstance.value));
 }
-
-export let TagPool = ref<string[]>([]);

@@ -89,7 +89,7 @@ export function CalcHeightWithRatio(w: number, r: number) {
 }
 
 export function Clamp(value: number, min: number, max: number): number {
-    return Math.min(Math.max(value, min), max);
+	return Math.min(Math.max(value, min), max);
 }
 
 export function HasBucket(item: ImageItem) {
@@ -107,4 +107,26 @@ export function HasUpscale(item: ImageItem, buckets: Map<string, Bucket>) {
 		}
 	}
 	return false;
+}
+
+export function MergeUniqueArrays<T>(arr1: T[], arr2: T[]): T[] {
+	const set = new Set<T>();
+	const result: T[] = [];
+
+	// 将第一个数组的所有元素加入Set
+	for (const item of arr1) {
+		set.add(item);
+	}
+
+	// 将第二个数组的所有元素加入Set
+	for (const item of arr2) {
+		set.add(item);
+	}
+
+	// 将Set中的元素转为数组
+	for (const item of set) {
+		result.push(item);
+	}
+
+	return result;
 }

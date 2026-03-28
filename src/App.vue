@@ -1,20 +1,27 @@
 ﻿<script lang="ts" setup>
-import { computed, onMounted, onUnmounted, reactive, ref, shallowRef, useTemplateRef } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, shallowRef, useTemplateRef, type Ref } from 'vue';
 import ImageList from './components/ImageList.vue';
 import SplitView from './components/SplitView.vue';
 import BucketsExpansionPanels from './components/ExpansionPanels/Buckets.vue';
-import { DownloadFile, OpenFileDialog, PackAsZIP, ReadAsImage, ReadAsJson, type ImageInstance } from './utils/FileSystem';
+import TagsExpansionPanels from './components/ExpansionPanels/Tags.vue';
+import { OpenFileDialog, PackAsZIP, ReadAsImage, ReadAsJson, type ImageInstance } from './utils/FileSystem';
 import type { Bucket, CropRect, ImageItem, Project, ProjectImageData, Rect } from './utils/Types';
-import { CalculateDefaultCrop, CropImageAsBlob, FindJsonInFileList, HasBucket, HasUpscale } from './utils/Functions';
+import { CalculateDefaultCrop, CropImageAsBase64, CropImageAsBlob, FindJsonInFileList, HasBucket, HasUpscale, MergeUniqueArrays } from './utils/Functions';
 import Cropper from './components/Cropper.vue';
+import { InvokeUserDownloadFile } from './utils/Network';
+import ModelDialog from './components/ModelDialog.vue';
+import { TagModelInstance, TagPool } from './utils/TagModel';
+import TagEditDialog from './components/TagEditDialog.vue';
 
 let images = ref<ImageItem[]>([]);
 const imglist = useTemplateRef("imglist");
-const cropper = useTemplateRef("cropper");
 let imgIndex = ref(-1);
 let selectedCropIndex = ref(-1);
 let buckets = reactive(new Map<string, Bucket>());
 const expandModel = shallowRef(["bucket"]);
+
+
+/************* MENU FUNCTIONS ******************/
 
 function onImportClicked() {
 	OpenFileDialog("image/*", true, async function (filelist) {
@@ -36,6 +43,8 @@ function onImportClicked() {
 				crops: crops,
 				cachedHasCrop: false,
 				cachedHasUpscale: false,
+				srcTags: [],
+				selectedTags: [],
 			});
 		});
 
@@ -121,6 +130,11 @@ function onRemoveUselessBucketsClicked() {
 	}
 }
 
+const modelDialog = useTemplateRef("modelDialog");
+function onTagModelClicked() {
+	modelDialog.value?.ShowDialog();
+}
+
 async function onExportClicked() {
 	if (images.value.length === 0) {
 		alert("没有任何文件需要导出");
@@ -152,8 +166,16 @@ async function onExportClicked() {
 		}
 	}
 	zipfile.set(`project.json`, JSON.stringify(project, null, 4));
-	DownloadFile("export.zip", await PackAsZIP(zipfile));
+	InvokeUserDownloadFile("export.zip", await PackAsZIP(zipfile));
 }
+
+function onGithubClicked() {
+	window.open("https://github.com/IceSandwich/ShrinkCrop", "_blank");
+}
+
+/*********** CALLBACKS ***********/
+
+const cropper = useTemplateRef("cropper");
 
 function onImgListChangeIndex(id: number) {
 	imgIndex.value = id;
@@ -176,6 +198,29 @@ function onBucketUpdated() {
 	cropper.value?.Redraw();
 }
 
+const tagEditDialog = useTemplateRef("tagEditDialog");
+async function onInvokeModelInfer() {
+	if (TagModelInstance.value == null) {
+		console.error(`TagModelInstance is null`);
+		return;
+	}
+
+	const current = images.value[imgIndex.value];
+
+	const croped = await CropImageAsBase64(current.imgurl, current.crops[0].x, current.crops[0].y, current.crops[0].width, current.crops[0].height, current.crops[0].width, current.crops[0].height);
+
+	const result = await TagModelInstance.value.InferTags(croped);
+	console.log(result);
+	current.srcTags = result.map(v => v.name);
+	TagPool.value = MergeUniqueArrays(TagPool.value, current.srcTags);
+	console.log(TagPool.value);
+	current.selectedTags = current.srcTags;
+}
+
+function onTagSettingClicked() {
+	tagEditDialog.value?.ShowDialog();
+}
+
 const formatBar = computed(() => {
 	const ig = images.value[imgIndex.value];
 	const r = ig.crops[selectedCropIndex.value];
@@ -189,22 +234,24 @@ function onBeforeUnload(e: BeforeUnloadEvent) {
 	e.returnValue = '';
 }
 
-function onGithubClicked() {
-	window.open("https://github.com/IceSandwich/ShrinkCrop", "_blank");
-}
 
 onMounted(() => {
 	window.addEventListener("beforeunload", onBeforeUnload);
 })
 
-onUnmounted(() => {
+onUnmounted(async () => {
 	window.removeEventListener("beforeunload", onBeforeUnload);
+
+	await TagModelInstance.value?.Release();
 })
 
 </script>
 
 <template>
 	<VApp theme="PurpleTheme">
+		<ModelDialog ref="modelDialog"></ModelDialog>
+		<TagEditDialog ref="tagEditDialog"></TagEditDialog>
+
 		<VAppBar class="bg-purple-darken-4">
 			<VBtn size="large" class="ms-3" prepend-icon="mdi-crop" variant="text">
 				<VAppBarTitle class="select">ShrinkCrop</VAppBarTitle>
@@ -225,6 +272,12 @@ onUnmounted(() => {
 				<VBtn prepend-icon="mdi-pail-remove" class="text-none" @click="onRemoveUselessBucketsClicked">
 					清理无用桶
 				</VBtn>
+				<VBtn prepend-icon="mdi-tag" class="text-none" @click="onTagModelClicked">
+					打标模型
+				</VBtn>
+				<VBtn prepend-icon="mdi-tag" class="text-none" @click="onTagSettingClicked" v-if="TagModelInstance != null">
+					标签设置
+				</VBtn>
 				<VBtn prepend-icon="mdi-github" class="text-none" @click="onGithubClicked">
 					Github
 				</VBtn>
@@ -241,13 +294,14 @@ onUnmounted(() => {
 			</VToolbarItems>
 		</VAppBar>
 
-		<VMain>
+		<VMain style="height: 100%">
 			<SplitView panelbg-color="lightgray" @on-panel-resize="cropper?.OnResize()">
 				<template v-slot:sidebar>
 					<VContainer>
 						<VRow>
 							<VExpansionPanels v-if="imgIndex !== -1 && selectedCropIndex !== -1" multiple v-model="expandModel" >
 								<BucketsExpansionPanels :crop="images[imgIndex].crops[selectedCropIndex]" :buckets="buckets" @on-bucket-update="onBucketUpdated"></BucketsExpansionPanels value="bucket">
+								<TagsExpansionPanels v-model:cur-tags="images[imgIndex].selectedTags" @on-invoke-model-infer="onInvokeModelInfer" v-if="TagModelInstance != null"></TagsExpansionPanels>
 							</VExpansionPanels>
 						</VRow>
 					</VContainer>

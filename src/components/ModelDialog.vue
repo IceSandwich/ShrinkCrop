@@ -15,7 +15,7 @@
                                     item-title="name" @update:model-value="onSelectedPretrainedModel"></v-select>
                                 <v-slider color="orange" label="线程数" thumb-label="always" :min="1" :max="8" :step="1"
                                     :model-value="2" class="mt-5"></v-slider>
-                                <v-checkbox label="Warmup"></v-checkbox>
+                                <v-checkbox label="Warmup" v-model="shouldWarmup"></v-checkbox>
                             </v-form>
                         </v-col>
                     </v-row>
@@ -66,21 +66,22 @@ pretrainedModels.push({
     }
 })
 const tagFileUrl = "models/selected_tags.csv";
+const shouldWarmup = ref<boolean>(true);
+
+let progressText = useTemplateRef("progressText");
+const progressValue = ref(0);
+function setProgress(norm_value: number, text: string) {
+    progressValue.value = norm_value * 100;
+    if (progressText.value) {
+        progressText.value.textContent = text;
+    }
+}
 
 const select: ShallowRef<ModelInfo> = shallowRef(pretrainedModels[0]);
 const formDisable = ref(false);
-let progressText = useTemplateRef("progressText");
-const progressValue = ref(0);
-function onInitModel() {
+async function onInitModel() {
     formDisable.value = true;
     console.log("selected: ", select.value);
-
-    const setProgress = (norm_value: number, text: string) => {
-        progressValue.value = norm_value *100;
-        if (progressText.value) {
-            progressText.value.textContent = text;
-        }
-    }
 
     const modelPromise = GetFileInStore("models", select.value.filename).then((value) => {
         if (value == null) {
@@ -107,16 +108,21 @@ function onInitModel() {
         }
     });
 
-    Promise.all([modelPromise, csvPromise]).then(async ([modelBuf, csvContent]) => {
-        setProgress(0, "Loading onnx-runtime...");
-        return await CreateTagModel(modelBuf, csvContent, select.value.tensors);
-    }).then(async (model) => {
-        TagModelInstance.value = model;
-        setProgress(100, "Complete!");
+    const [modelBuf, csvContent] = await Promise.all([modelPromise, csvPromise])
 
-        formDisable.value = false;
-        showModelDialog.value = false;
-    });
+    setProgress(0, "Loading onnx-runtime...");
+    TagModelInstance.value = await CreateTagModel(modelBuf, csvContent, select.value.tensors);
+
+    if (shouldWarmup.value) {
+        setProgress(100, "Warmup...");
+        const tensor = TagModelInstance.value.NewEmptyTensor();
+        await TagModelInstance.value.InferTags(tensor, 0.3485, false);
+    }
+    
+
+    setProgress(100, "Complete!");
+    formDisable.value = false;
+    showModelDialog.value = false;
 }
 
 const showModelDialog = ref(false);
