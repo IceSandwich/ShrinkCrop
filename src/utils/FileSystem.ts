@@ -82,9 +82,35 @@ export function ReadAsJson<T>(file: File) : Promise<T> {
 	});
 }
 
+interface pathComponent {
+    directory: string;
+    basename: string;
+}
+
+function parsePath(filePath: string): pathComponent {
+  // 查找最后一个斜杠的位置
+  const lastSlashIndex = filePath.lastIndexOf('/');
+  
+  // 如果没有斜杠，说明是简单文件名
+  if (lastSlashIndex === -1) {
+    return { directory: '', basename: filePath };
+  }
+  
+  // 分离目录和文件名
+  const directory = filePath.substring(0, lastSlashIndex);
+  const filename = filePath.substring(lastSlashIndex + 1);
+  
+  return { directory, basename: filename };
+}
+
 export function PackAsZIP(files: Map<string, Blob | string>) {
 	const zip = new JSZip();
+    const folder = new Set<string>();
 	for (const [key, value] of files) {
+        const components = parsePath(key);
+        if (components.directory != "" && !folder.has(components.directory)) {
+            zip.folder(components.directory);
+        }
 		zip.file(key, value);
 	}
 	return zip.generateAsync({type: "blob"});
@@ -176,4 +202,12 @@ export async function SaveToStorage(storeName: string, filename: string, content
 
         request.onerror = () => reject(request.error);
     });
+}
+
+export function GetFileSuffix(filename: string): string {
+  const lastDotIndex = filename.lastIndexOf('.');
+  if (lastDotIndex === -1 || lastDotIndex === 0) {
+    return '';
+  }
+  return filename.slice(lastDotIndex);
 }

@@ -1,4 +1,5 @@
-﻿import type { Bucket, CropRect, ImageItem, Rect, Size } from "./Types";
+﻿import { Md5 } from "ts-md5";
+import type { Bucket, CropRect, ImageItem, Rect, Size } from "./Types";
 
 export function FindJsonInFileList(filelist: File[]) {
 	let ret: number[] = [];
@@ -129,4 +130,13 @@ export function MergeUniqueArrays<T>(arr1: T[], arr2: T[]): T[] {
 	}
 
 	return result;
+}
+
+/**
+ * 计算字符串的MD5哈希值
+ * @param input 需要计算MD5的字符串
+ * @returns MD5哈希值
+ */
+export function CalculateMD5(input: string): string {
+  return Md5.hashStr(input);
 }

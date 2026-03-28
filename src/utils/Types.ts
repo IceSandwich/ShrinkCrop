@@ -18,16 +18,24 @@ export interface Bucket {
 	ratio: number;
 }
 
-export interface ImageItem {
-	imgurl: string;
+export interface ProjectImageData {
+	// record source path may be the data will be used in other programs
+	// we use md5 to match 2 images instead of filename
+	filename: string;
+
+	md5: string;
+	srcTags: string[];
+	selectedTags: string[];
+	crops: CropRect[];
+}
+
+export interface ImageItem extends ProjectImageData{
 	filename: string;
 	width: number;
 	height: number;
-	crops: CropRect[];
-	cachedHasCrop: boolean,
-	cachedHasUpscale: boolean,
-	srcTags: string[];
-	selectedTags: string[];
+	imgurl: string;
+	cachedHasCrop: boolean;
+	cachedHasUpscale: boolean;
 }
 
 
@@ -35,12 +43,9 @@ export interface ProjectMetadata {
 	version: number;
 }
 
-export interface ProjectImageData {
-	crops: CropRect[];
-}
 
 export interface Project {
 	metadata: ProjectMetadata;
-	files: { [key: string]: ProjectImageData };
+	files: ProjectImageData[];
 	buckets: { [key: string]: Bucket };
 }

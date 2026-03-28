@@ -6,7 +6,7 @@ import BucketsExpansionPanels from './components/ExpansionPanels/Buckets.vue';
 import TagsExpansionPanels from './components/ExpansionPanels/Tags.vue';
 import { OpenFileDialog, PackAsZIP, ReadAsImage, ReadAsJson, type ImageInstance } from './utils/FileSystem';
 import type { Bucket, CropRect, ImageItem, Project, ProjectImageData, Rect } from './utils/Types';
-import { CalculateDefaultCrop, CropImageAsBase64, CropImageAsBlob, FindJsonInFileList, HasBucket, HasUpscale, MergeUniqueArrays } from './utils/Functions';
+import { CalculateDefaultCrop, CalculateMD5, CropImageAsBase64, CropImageAsBlob, HasBucket, HasUpscale, MergeUniqueArrays } from './utils/Functions';
 import Cropper from './components/Cropper.vue';
 import { InvokeUserDownloadFile } from './utils/Network';
 import ModelDialog from './components/ModelDialog.vue';
@@ -36,6 +36,7 @@ function onImportClicked() {
 				bucket: "",
 			}];
 			images.value.push({
+				md5: CalculateMD5(v.url),
 				imgurl: v.url,
 				filename: v.filename,
 				width: v.img.naturalWidth,
@@ -141,31 +142,55 @@ async function onExportClicked() {
 		return;
 	}
 
-	let project: Project = {
+	let prjfiles: ProjectImageData[] = [];
+	let availableBuckets = new Map<string, Bucket>();
+	let zipfile = new Map<string, string | Blob>();
+	
+	for (var j = 0; j < images.value.length; j++) {
+		const v = images.value[j];
+		if (v.crops.length > 1) throw new Error("unsupported multiple crops");
+		if (v.crops.length == 0) continue;
+
+		const crop = v.crops[0];
+		let tw = crop.width, th = crop.height;
+		let usedBucket = crop.bucket;
+		if (usedBucket !== "") {
+			const bucket = buckets.get(usedBucket);
+			if (!bucket) {
+				alert(`cannot find the bucket for image ${v.filename}, unexpected logical error`);
+				usedBucket = ""
+			} else {
+				tw = bucket.width;
+				th = bucket.height;
+				if (!availableBuckets.has(usedBucket)) {
+					availableBuckets.set(usedBucket, bucket)
+				}
+			}
+		}
+		const name = `img${j}.png`;
+		prjfiles.push({
+			filename: name,
+			md5: v.md5,
+			srcTags: v.srcTags,
+			selectedTags: v.selectedTags,
+			crops: [{
+				bucket: usedBucket,
+				x: crop.x,
+				y: crop.y,
+				width: tw,
+				height: th,
+			}],
+		})
+		zipfile.set(`images/${name}`, await CropImageAsBlob(v.imgurl, crop.x, crop.y, crop.width, crop.height, tw, th));
+	}
+	let prj: Project = {
 		metadata: {
 			version: 1,
 		},
-		files: Object.fromEntries(images.value.map((v) => [v.filename, {
-			crops: v.crops,
-		}])),
-		buckets: Object.fromEntries(buckets.entries()),
-	};
-	let zipfile = new Map<string, string | Blob>();
-	for (var j = 0; j < images.value.length; j++) {
-		const v = images.value[j];
-		for (var i = 0; i < v.crops.length; i++) {
-			let tw = v.crops[i].width, th = v.crops[i].height;
-			if (v.crops[i].bucket !== "") {
-				const bucket = buckets.get(v.crops[i].bucket);
-				if (bucket) {
-					tw = bucket.width;
-					th = bucket.height;
-				}
-			}
-			zipfile.set(`${v.filename}_${i}.png`, await CropImageAsBlob(v.imgurl, v.crops[i].x, v.crops[i].y, v.crops[i].width, v.crops[i].height, tw, th));
-		}
+		files: prjfiles,
+		buckets: Object.fromEntries(availableBuckets.entries()),
 	}
-	zipfile.set(`project.json`, JSON.stringify(project, null, 4));
+	zipfile.set(`project.json`, JSON.stringify(prj, null, 4));
 	InvokeUserDownloadFile("export.zip", await PackAsZIP(zipfile));
 }
 
