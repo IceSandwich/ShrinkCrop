@@ -1,11 +1,11 @@
 ﻿<script lang="ts" setup>
-import { computed, onMounted, onUnmounted, reactive, ref, shallowRef, useTemplateRef, type Ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, shallowRef, useTemplateRef } from 'vue';
 import ImageList from './components/ImageList.vue';
 import SplitView from './components/SplitView.vue';
 import BucketsExpansionPanels from './components/ExpansionPanels/Buckets.vue';
 import TagsExpansionPanels from './components/ExpansionPanels/Tags.vue';
-import { OpenFileDialog, PackAsZIP, ReadAsImage, ReadAsJson, type ImageInstance } from './utils/FileSystem';
-import type { Bucket, CropRect, ImageItem, Project, ProjectImageData, Rect } from './utils/Types';
+import { OpenFileDialog, PackAsZIP, ReadAsImage, ReadAsJson } from './utils/FileSystem';
+import type { Bucket, CropRectWithTags, ImageItem, Project, ProjectImageData } from './utils/Types';
 import { CalculateDefaultCrop, CalculateMD5, CropImageAsBase64, CropImageAsBlob, HasBucket, HasUpscale, MergeUniqueArrays } from './utils/Functions';
 import Cropper from './components/Cropper.vue';
 import { InvokeUserDownloadFile } from './utils/Network';
@@ -28,12 +28,14 @@ function onImportClicked() {
 		const imgs = await Promise.all(filelist.map((v, i) => ReadAsImage(v)))
 
 		imgs.forEach((v, i) => {
-			let crops: CropRect[] = [{
+			let crops: CropRectWithTags[] = [{
 				...CalculateDefaultCrop({
 					width: v.img.naturalWidth,
 					height: v.img.naturalHeight,
 				}, 0.8),
 				bucket: "",
+				srcTags: [],
+				selectedTags: [],
 			}];
 			images.value.push({
 				md5: CalculateMD5(v.url),
@@ -44,8 +46,6 @@ function onImportClicked() {
 				crops: crops,
 				cachedHasCrop: false,
 				cachedHasUpscale: false,
-				srcTags: [],
-				selectedTags: [],
 			});
 		});
 
@@ -171,14 +171,14 @@ async function onExportClicked() {
 		prjfiles.push({
 			filename: name,
 			md5: v.md5,
-			srcTags: v.srcTags,
-			selectedTags: v.selectedTags,
 			crops: [{
 				bucket: usedBucket,
 				x: crop.x,
 				y: crop.y,
 				width: tw,
 				height: th,
+				srcTags: crop.srcTags,
+				selectedTags: crop.selectedTags,
 			}],
 		})
 		zipfile.set(`images/${name}`, await CropImageAsBlob(v.imgurl, crop.x, crop.y, crop.width, crop.height, tw, th));
@@ -229,17 +229,20 @@ async function onInvokeModelInfer() {
 		console.error(`TagModelInstance is null`);
 		return;
 	}
+	if (selectedCropIndex.value == -1) {
+		throw new Error(`selectedCropIndex is -1`);
+	}
 
 	const current = images.value[imgIndex.value];
+	const crop = current.crops[selectedCropIndex.value];
 
-	const croped = await CropImageAsBase64(current.imgurl, current.crops[0].x, current.crops[0].y, current.crops[0].width, current.crops[0].height, current.crops[0].width, current.crops[0].height);
+	const cropedImg = await CropImageAsBase64(current.imgurl, current.crops[0].x, current.crops[0].y, current.crops[0].width, current.crops[0].height, current.crops[0].width, current.crops[0].height);
 
-	const result = await TagModelInstance.value.InferTags(croped);
+	const result = await TagModelInstance.value.InferTags(cropedImg);
 	console.log(result);
-	current.srcTags = result.map(v => v.name);
-	TagPool.value = MergeUniqueArrays(TagPool.value, current.srcTags);
-	console.log(TagPool.value);
-	current.selectedTags = current.srcTags;
+	crop.srcTags = result.map(v => v.name);
+	TagPool.value = MergeUniqueArrays(TagPool.value, crop.srcTags);
+	crop.selectedTags = result.map(v => v.name);
 }
 
 function onTagSettingClicked() {
@@ -326,7 +329,7 @@ onUnmounted(async () => {
 						<VRow>
 							<VExpansionPanels v-if="imgIndex !== -1 && selectedCropIndex !== -1" multiple v-model="expandModel" >
 								<BucketsExpansionPanels :crop="images[imgIndex].crops[selectedCropIndex]" :buckets="buckets" @on-bucket-update="onBucketUpdated"></BucketsExpansionPanels value="bucket">
-								<TagsExpansionPanels v-model:cur-tags="images[imgIndex].selectedTags" @on-invoke-model-infer="onInvokeModelInfer" v-if="TagModelInstance != null"></TagsExpansionPanels>
+								<TagsExpansionPanels v-model:cur-tags="images[imgIndex].crops[selectedCropIndex].selectedTags" @on-invoke-model-infer="onInvokeModelInfer" v-if="TagModelInstance != null"></TagsExpansionPanels>
 							</VExpansionPanels>
 						</VRow>
 					</VContainer>

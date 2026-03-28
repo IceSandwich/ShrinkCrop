@@ -12,6 +12,11 @@ export interface CropRect extends Rect {
 	bucket: string;
 }
 
+export interface CropRectWithTags extends CropRect {
+	srcTags: string[];
+	selectedTags: string[];
+}
+
 export interface Bucket {
 	width: number;
 	height: number;
@@ -24,9 +29,7 @@ export interface ProjectImageData {
 	filename: string;
 
 	md5: string;
-	srcTags: string[];
-	selectedTags: string[];
-	crops: CropRect[];
+	crops: CropRectWithTags[];
 }
 
 export interface ImageItem extends ProjectImageData{
