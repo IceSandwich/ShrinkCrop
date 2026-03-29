@@ -1,71 +1,14 @@
-<template>
-    <v-dialog v-model="dialog" max-width="900" persistent>
-        <v-card title="标签设置" prepend-icon="mdi-tag">
-            <v-card-text>
-                <VRow class="ml-1 mt-1">
-                    <h3>
-                        标签类别管理
-                    </h3>
-                </VRow>
-                <v-row>
-                    <v-col cols="6">
-                        <EditableList title="标签类别管理" v-if="data" :items="data.categories" @select="selectCategory" @add="addCategory"
-                            @edit="editCategory" @delete="deleteCategory" @move-up="moveCategoryUp"
-                            @move-down="moveCategoryDown" />
-                    </v-col>
-                    <v-col cols="6">
-                        <EditableList title="标签管理" v-if="data"
-                            :items="selectedCategoryIndex === -1 ? null : data.categories[selectedCategoryIndex].tags"
-                            @add="addTag" @edit="editTag" @delete="deleteTag" @move-up="moveTagUp"
-                            @move-down="moveTagDown" />
-                    </v-col>
-                </v-row>
-                <VRow class="ml-1 mt-5">
-                    <h3>
-                        不希望出现的标签
-                    </h3>
-                </VRow>
-                <v-row class="mt-4">
-                    <v-col cols="12">
-                        <EditableList title="不希望出现的标签" v-if="data" :items="data.unwanted" @add="addUnwantedTag"
-                            @edit="editUnwantedTag" @delete="deleteUnwantedTag" @move-up="moveUnwantedTagUp"
-                            @move-down="moveUnwantedTagDown" />
-                    </v-col>
-                </v-row>
-            </v-card-text>
-            <v-card-actions>
-                <v-spacer></v-spacer>
-                <v-btn size="large" text @click="cancel">取消</v-btn>
-                <v-btn class="bg-blue-darken-3 text-none" size="large" @click="save">确定</v-btn>
-            </v-card-actions>
-        </v-card>
-    </v-dialog>
-</template>
-
 <script lang="ts" setup>
-import { ref, computed, onMounted } from 'vue'
-import EditableList from './TagEditList.vue'
+import { ref, onMounted } from 'vue'
+import EditableList from '@/components/TagEditList.vue';
 import { GetSavedCategoryCopy, UpdateSavedCategory, type SavedCategory } from '@/utils/TagModel';
 
-interface Tag { name: string }
-interface Category { name: string; tags: Tag[] }
+// interface Tag { name: string }
+// interface Category { name: string; tags: Tag[] }
 
 const dialog = ref(false)
-// const categories = ref<Category[]>([])
 const selectedCategoryIndex = ref<number>(-1)
-// const unwantedTags = ref<Tag[]>([])
 const data = ref<SavedCategory | null>(null);
-
-// 读取 localStorage
-onMounted(() => {
-    
-})
-
-// 当前选中分类的标签
-// const selectedCategoryTags = computed<Tag[]>(() => {
-//     if (selectedCategoryIndex.value === -1) return []
-//     return categories.value[selectedCategoryIndex.value].tags
-// })
 
 // ==== 分类操作 ====
 function selectCategory(index: number) { selectedCategoryIndex.value = index }
@@ -118,8 +61,9 @@ function addTag() {
 function editTag(index: number) {
     if (!data.value) return;
     if (selectedCategoryIndex.value === -1 || index === -1) return
-    const tag = data.value?.categories[selectedCategoryIndex.value].tags[index]
-    const name = prompt('修改标签名称', tag.name); if (!name) return
+    const tag = data.value?.categories[selectedCategoryIndex.value].tags[index];
+    const name = prompt('修改标签名称', tag.name); 
+    if (!name) return
     tag.name = name
 }
 function deleteTag(index: number) {
@@ -146,11 +90,15 @@ function moveTagDown(index: number) {
 }
 
 // ==== 不想要标签操作 ====
-function addUnwantedTag() { const name = prompt('输入不想要标签名称'); if (!name) return; data.value?.unwanted.push({ name }) }
+function addUnwantedTag() { 
+    const name = prompt('输入不想要标签名称');
+    if (!name) return; 
+    data.value?.unwanted.push({ name })
+}
 function editUnwantedTag(index: number) { 
     if (index === -1) return; 
     if (!data.value) return;
-    const tag = data.value?.unwanted[index]; 
+    const tag = data.value?.unwanted[index];
     const name = prompt('修改不想要标签名称', tag.name); 
     if (!name) return; 
     tag.name = name 
@@ -197,3 +145,57 @@ defineExpose({
     ShowDialog
 })
 </script>
+
+<template>
+    <v-dialog v-model="dialog" max-width="900" persistent>
+        <template v-slot:activator>
+            <slot name="activator" :showDialog="ShowDialog">
+                <VBtn @click="ShowDialog()">
+                    标签类别管理
+                </VBtn>
+            </slot>
+        </template>
+
+        <template v-slot:default>
+            <v-card title="标签设置" prepend-icon="mdi-tag">
+                <v-card-text>
+                    <VRow class="ml-1 mt-1">
+                        <h3>
+                            标签类别管理
+                        </h3>
+                    </VRow>
+                    <v-row>
+                        <v-col cols="6">
+                            <EditableList title="标签类别管理" v-if="data" :items="data.categories" @select="selectCategory" @add="addCategory"
+                                @edit="editCategory" @delete="deleteCategory" @move-up="moveCategoryUp"
+                                @move-down="moveCategoryDown" />
+                        </v-col>
+                        <v-col cols="6">
+                            <EditableList title="标签管理" v-if="data"
+                                :items="selectedCategoryIndex === -1 ? null : data.categories[selectedCategoryIndex].tags"
+                                @add="addTag" @edit="editTag" @delete="deleteTag" @move-up="moveTagUp"
+                                @move-down="moveTagDown" />
+                        </v-col>
+                    </v-row>
+                    <VRow class="ml-1 mt-5">
+                        <h3>
+                            不希望出现的标签
+                        </h3>
+                    </VRow>
+                    <v-row class="mt-4">
+                        <v-col cols="12">
+                            <EditableList title="不希望出现的标签" v-if="data" :items="data.unwanted" @add="addUnwantedTag"
+                                @edit="editUnwantedTag" @delete="deleteUnwantedTag" @move-up="moveUnwantedTagUp"
+                                @move-down="moveUnwantedTagDown" />
+                        </v-col>
+                    </v-row>
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <v-btn size="large" text @click="cancel">取消</v-btn>
+                    <v-btn class="bg-blue-darken-3 text-none" size="large" @click="save">确定</v-btn>
+                </v-card-actions>
+            </v-card>
+        </template>
+    </v-dialog>
+</template>

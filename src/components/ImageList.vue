@@ -1,17 +1,19 @@
 <script setup lang="ts">
-import type { ImageItem } from '@/utils/Types';
-import { computed, onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
+import { ImageItemBucketStatus, type ImageItem, type ImageItemExtra } from '@/utils/Project';
+import { onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
 
 const props = defineProps<{
-	items: ImageItem[]
-}>()
-const emits = defineEmits<{
-	change: [id: number],
+	images: ImageItem[],
+	status: ImageItemExtra[],
 }>();
-const imageItems = useTemplateRef("imageItems");
+
+const emits = defineEmits<{
+	OnChange: [id: number],
+}>();
 const imageList = useTemplateRef("imageList");
 
-let curid = ref(-1);
+// let curid = ref(-1);
+const curid = defineModel<number>("selectedIndex", {required: true});
 function onClick(e: MouseEvent) {
 	e.preventDefault();
 	e.stopPropagation();
@@ -23,7 +25,7 @@ function onClick(e: MouseEvent) {
 
 	if (id!== curid.value) {
 		curid.value = id;
-		emits('change', id);
+		emits('OnChange', id);
 	}
 }
 
@@ -40,19 +42,14 @@ function onArrowKey(e: KeyboardEvent) {
 
 	let newid = -1;
 	if (e.key === 'ArrowLeft') {
-		newid = clamp(curid.value - 1, 0, props.items.length - 1);
+		newid = clamp(curid.value - 1, 0, props.images.length - 1);
 	} else if (e.key === 'ArrowRight') {
-		newid = clamp(curid.value + 1, 0, props.items.length - 1);
+		newid = clamp(curid.value + 1, 0, props.images.length - 1);
 	}
 	if (newid!== curid.value) {
 		curid.value  = newid;
-		emits('change', curid.value);
+		emits('OnChange', curid.value);
 	}
-}
-
-function SetID(id: number) {
-	curid.value = id;
-	console.log("===>", curid.value);
 }
 
 function onWheel(e: WheelEvent) {
@@ -70,18 +67,23 @@ onUnmounted(() => {
 	document.removeEventListener("keydown", onArrowKey);
 	imageList.value?.removeEventListener("wheel", onWheel);
 });
-
-defineExpose({
-	SetID,
-})
 </script>
 
 <template>
 	<div class="image-list-bar" ref="imageList">
-		<div class="image-item" :data-id="index" v-for="item, index in items" @click="onClick" ref="imageItems" :class="{ selected: index === curid }">
+		<div class="image-item" :data-id="index" 
+			v-for="item, index in images"
+			 @click="onClick" 
+			ref="imageItems" 
+			:class="{ selected: index === curid }"
+		>
 			<img :src="item.imgurl">
-			<div>{{ item.filename }}</div>
-			<VIcon class="badge elevation-5" v-if="item.cachedHasCrop" :icon="item.cachedHasUpscale ? 'mdi-pail-plus' : 'mdi-pail'" :class="item.cachedHasUpscale ? 'pail-plus-badge' : 'pail-badge'"></VIcon>
+			<div>{{ item.srcfilename }}</div>
+			<VIcon class="badge elevation-5" 
+				v-if="status[index].bucket_status.value != ImageItemBucketStatus.NO_BUCKET" 
+				:icon="status[index].bucket_status.value == ImageItemBucketStatus.BUCKET_UPSACLE ? 'mdi-pail-plus' : 'mdi-pail'" 
+				:class="status[index].bucket_status.value == ImageItemBucketStatus.BUCKET_UPSACLE ? 'pail-plus-badge' : 'pail-badge'"
+			></VIcon>
 		</div>
 	</div>
 </template>

@@ -1,5 +1,6 @@
 import * as ort from "onnxruntime-web/all";
-import { computed, isProxy, ref, toRaw } from "vue";
+import { computed, ref } from "vue";
+import { Deproxy } from "./Functions";
 
 export interface ModelTensorInfo {
     input_width: number;
@@ -219,21 +220,17 @@ export async function CreateTagModel(model: Uint8Array, tagContent: string, io: 
     readSavedCategory();
     return new TagModel(vaules[0], vaules[1], io);
 }
-export interface CategoryTags {
+
+export interface NameItem {
     name: string;
-    tags: string[];
+}
+export interface CategoryTags extends NameItem {
+    tags: NameItem[];
 }
 
 export interface SavedCategory {
     categories: CategoryTags[];
-    unwanted: string[];
-}
-
-function deproxy<T>(p: T): T {
-    if (isProxy(p)) {
-        return toRaw(p as any).name;
-    }
-    return p;
+    unwanted: NameItem[];
 }
 
 let savedCategoryInstance = ref<SavedCategory | null>(null);
@@ -253,7 +250,7 @@ export const DisplayCategory = computed(() => {
 	TagPool.value.forEach((tag) => {
         const dst = tag.toLowerCase();
         if (savedCategoryInstance.value?.unwanted.findIndex(v => {
-            const src = deproxy(v).toLowerCase();
+            const src = Deproxy(v.name).toLowerCase();
             return src == dst;
         }) != -1) {
             return;
@@ -262,17 +259,17 @@ export const DisplayCategory = computed(() => {
 		var used = false;
 		for (let i = 0; i < savedCategoryInstance.value!.categories.length; i++) {
 			if (savedCategoryInstance.value!.categories[i].tags.findIndex(v => {
-                const src = deproxy(v).toLowerCase();
+                const src = Deproxy(v.name).toLowerCase();
                 return src == dst;
             }) != -1) {
-				cat[i].tags.push(tag)
+				cat[i].tags.push({ name: tag })
 				used = true
 				break
 			}
 		}
 
 		if (!used) {
-			cat[uncatindex].tags.push(tag)
+			cat[uncatindex].tags.push({ name: tag })
 		}
 	})
     console.log("ret display category:", cat)
@@ -295,7 +292,7 @@ function readSavedCategory() {
     }
 }
 
-export function GetSavedCategoryCopy() {
+export function GetSavedCategoryCopy(): SavedCategory | null {
     if (savedCategoryInstance.value == null) {
         return null;
     }

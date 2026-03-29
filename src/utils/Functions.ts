@@ -1,6 +1,7 @@
 ﻿import { Md5 } from "ts-md5";
-import type { Bucket, CropRect, ImageItem, Rect, Size } from "./Types";
+import type { Rect, Size } from "./Types";
 import pica from "pica";
+import { isProxy, toRaw } from "vue";
 
 export function FindJsonInFileList(filelist: File[]) {
 	let ret: number[] = [];
@@ -98,23 +99,6 @@ export function Clamp(value: number, min: number, max: number): number {
 	return Math.min(Math.max(value, min), max);
 }
 
-export function HasBucket(item: ImageItem) {
-	return item.crops.find((v) => v.bucket != '') !== undefined;
-}
-
-export function HasUpscale(item: ImageItem, buckets: Map<string, Bucket>) {
-	for (const crop of item.crops) {
-		if (crop.bucket === "") continue;
-		const bucket = buckets.get(crop.bucket);
-		if (bucket) {
-			if (bucket.width > crop.width || bucket.height > crop.height) {
-				return true;
-			}
-		}
-	}
-	return false;
-}
-
 export function MergeUniqueArrays<T>(arr1: T[], arr2: T[]): T[] {
 	const set = new Set<T>();
 	const result: T[] = [];
@@ -202,4 +186,12 @@ export function PicaCropResize(imgUrl: string, x: number, y: number, w: number, 
 	}).then((canvas) => {
 		return picaInstance.toBlob(canvas, "image/png")
 	});
+}
+
+
+export function Deproxy<T>(p: T): T {
+	if (isProxy(p)) {
+		return toRaw(p as any).name;
+	}
+	return p;
 }

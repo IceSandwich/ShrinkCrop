@@ -1,44 +1,10 @@
-<template>
-    <div>
-        <div class="list-box">
-            <v-list v-if="items != null">
-                <v-list-item v-for="(item, index) in items"
-                    :class="{ 'selected': selectedIndex === index }" @click="selectItem(index)">
-                    <v-list-item-title>{{ item.name }}</v-list-item-title>
-                </v-list-item>
-            </v-list>
-        </div>
-        <VBtnGroup variant="outlined" density="compact" divided class="mt-2">
-            <v-btn small :disabled="items == null" @click="$emit('add')">
-                <v-icon left>mdi-plus</v-icon>新增
-            </v-btn>
-            <v-btn small :disabled="items == null || selectedIndex === -1" @click="$emit('edit', selectedIndex)">
-                <v-icon left>mdi-pencil</v-icon>修改
-            </v-btn>
-            <v-btn small :disabled="items == null || selectedIndex === -1" @click="handleDelete">
-                <v-icon left>mdi-delete</v-icon>删除
-            </v-btn>
-            <v-btn small :disabled="items == null || selectedIndex <= 0" @click="handleMoveUp">
-                <v-icon left>mdi-arrow-up</v-icon>上移
-            </v-btn>
-            <v-btn small :disabled="items == null || selectedIndex === -1 || selectedIndex >= items.length - 1"
-                @click="handleMoveDown">
-                <v-icon left>mdi-arrow-down</v-icon>下移
-            </v-btn>
-        </VBtnGroup>
-    </div>
-</template>
-
 <script lang="ts" setup>
+import type { NameItem } from '@/utils/TagModel';
 import { ref, watch } from 'vue'
 import { VBtnGroup } from 'vuetify/components';
 
-interface ListItem {
-    name: string
-}
-
 const props = defineProps<{
-    items: ListItem[] | null
+    items: NameItem[] | null
 }>();
 
 const emit = defineEmits<{
@@ -86,6 +52,37 @@ function handleMoveDown() {
 }
 </script>
 
+<template>
+    <div>
+        <div class="list-box">
+            <v-list v-if="items != null">
+                <v-list-item v-for="(item, index) in items"
+                    :class="{ 'selected': selectedIndex === index }" @click="selectItem(index)">
+                    <v-list-item-title>{{ item.name }}</v-list-item-title>
+                </v-list-item>
+            </v-list>
+        </div>
+        <VBtnGroup variant="outlined" density="compact" divided class="mt-2">
+            <v-btn small :disabled="items == null" @click="$emit('add')">
+                <v-icon left>mdi-plus</v-icon>新增
+            </v-btn>
+            <v-btn small :disabled="items == null || selectedIndex === -1" @click="$emit('edit', selectedIndex)">
+                <v-icon left>mdi-pencil</v-icon>修改
+            </v-btn>
+            <v-btn small :disabled="items == null || selectedIndex === -1" @click="handleDelete">
+                <v-icon left>mdi-delete</v-icon>删除
+            </v-btn>
+            <v-btn small :disabled="items == null || selectedIndex <= 0" @click="handleMoveUp">
+                <v-icon left>mdi-arrow-up</v-icon>上移
+            </v-btn>
+            <v-btn small :disabled="items == null || selectedIndex === -1 || selectedIndex >= items.length - 1"
+                @click="handleMoveDown">
+                <v-icon left>mdi-arrow-down</v-icon>下移
+            </v-btn>
+        </VBtnGroup>
+    </div>
+</template>
+
 <style scoped>
 .list-title {
     font-weight: bold;
@@ -108,3 +105,4 @@ function handleMoveDown() {
     margin-top: 4px;
 }
 </style>
+

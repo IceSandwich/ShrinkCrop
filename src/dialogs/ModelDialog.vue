@@ -1,46 +1,55 @@
 <template>
     <v-dialog max-width="500" v-model="showModelDialog">
-        <v-card title="打标模型" prepend-icon="mdi-package-variant-closed">
-            <v-card-text>
-                <v-container fluid>
-                    <v-row>
-                        <v-col>
-                            使用打标模型对裁剪的图片进行标注
-                        </v-col>
-                    </v-row>
-                    <v-row>
-                        <v-col>
-                            <v-form :disabled="formDisable">
-                                <v-select label="Pretrained Model" :items="pretrainedModels" v-model="select"
-                                    item-title="name" @update:model-value="onSelectedPretrainedModel"></v-select>
-                                <v-slider color="orange" label="线程数" thumb-label="always" :min="1" :max="8" :step="1"
-                                    :model-value="2" class="mt-5"></v-slider>
-                                <v-checkbox label="Warmup" v-model="shouldWarmup"></v-checkbox>
-                            </v-form>
-                        </v-col>
-                    </v-row>
-                    <v-row v-if="formDisable">
-                        <v-col cols="12">
-                            <span ref="progressText">
-                            </span>
-                        </v-col>
-                        <v-col>
-                            <v-progress-linear color="deep-purple-accent-4" @indeterminate="progressValue == 0" rounded></v-progress-linear>
-                        </v-col>
-                    </v-row>
-                    <v-row class="mt-10">
-                        <v-spacer></v-spacer>
-                        <v-btn class="bg-blue-darken-3 text-none" size="large" @click="onInitModel" :disabled="formDisable">加载</v-btn>
-                    </v-row>
+        <template v-slot:activator>
+            <slot name="activator" :showDialog="ShowDialog">
+                <v-btn @click="ShowDialog()">
+                    打标模型
+                </v-btn>
+            </slot>
+        </template>
 
-                </v-container>
-            </v-card-text>
-        </v-card>
+        <template v-slot:default>
+            <v-card title="打标模型" prepend-icon="mdi-package-variant-closed">
+                <v-card-text>
+                    <v-container fluid>
+                        <v-row>
+                            <v-col>
+                                使用打标模型对裁剪的图片进行标注
+                            </v-col>
+                        </v-row>
+                        <v-row>
+                            <v-col>
+                                <v-form :disabled="formDisable">
+                                    <v-select label="Pretrained Model" :items="pretrainedModels" v-model="select"
+                                        item-title="name"></v-select>
+                                    <v-slider color="orange" label="线程数" thumb-label="always" :min="1" :max="8" :step="1"
+                                        :model-value="2" class="mt-5"></v-slider>
+                                    <v-checkbox label="Warmup" v-model="shouldWarmup"></v-checkbox>
+                                </v-form>
+                            </v-col>
+                        </v-row>
+                        <v-row v-if="formDisable">
+                            <v-col cols="12">
+                                <span ref="progressText">
+                                </span>
+                            </v-col>
+                            <v-col>
+                                <v-progress-linear color="deep-purple-accent-4" @indeterminate="progressValue == 0" rounded></v-progress-linear>
+                            </v-col>
+                        </v-row>
+                        <v-row class="mt-10">
+                            <v-spacer></v-spacer>
+                            <v-btn class="bg-blue-darken-3 text-none" size="large" @click="onInitModel" :disabled="formDisable">加载</v-btn>
+                        </v-row>
+                    </v-container>
+                </v-card-text>
+            </v-card>
+        </template>
     </v-dialog>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, shallowRef, useTemplateRef, type ShallowRef } from 'vue';
+import { ref, shallowRef, useTemplateRef, type ShallowRef } from 'vue';
 import { GetFileInStore, GetTextInStore, SaveToStorage } from '@/utils/FileSystem';
 import { DownloadFileWithProgress, DownloadTextFile } from '@/utils/Network';
 import { CreateTagModel, TagModelInstance, type ModelTensorInfo } from '@/utils/TagModel';
@@ -52,7 +61,7 @@ interface ModelInfo {
     tensors: ModelTensorInfo;
 }
 
-let pretrainedModels: ModelInfo[] = [];
+const pretrainedModels: ModelInfo[] = [];
 pretrainedModels.push({
     name: "SmalingWolf/wd-v1-4-convnextv2-tagger-v2",
     url: "models/wd-v1-4-convnextv2-tagger-v2-slim.onnx",
@@ -68,7 +77,7 @@ pretrainedModels.push({
 const tagFileUrl = "models/selected_tags.csv";
 const shouldWarmup = ref<boolean>(true);
 
-let progressText = useTemplateRef("progressText");
+const progressText = useTemplateRef("progressText");
 const progressValue = ref(0);
 function setProgress(norm_value: number, text: string) {
     progressValue.value = norm_value * 100;
@@ -79,6 +88,9 @@ function setProgress(norm_value: number, text: string) {
 
 const select: ShallowRef<ModelInfo> = shallowRef(pretrainedModels[0]);
 const formDisable = ref(false);
+const emit = defineEmits<{
+    OnLoadedModel: []
+}>();
 async function onInitModel() {
     formDisable.value = true;
     console.log("selected: ", select.value);
@@ -123,13 +135,10 @@ async function onInitModel() {
     setProgress(100, "Complete!");
     formDisable.value = false;
     showModelDialog.value = false;
+    emit('OnLoadedModel');
 }
 
 const showModelDialog = ref(false);
-
-function onSelectedPretrainedModel(value: ModelInfo | null) {
-    // console.log("Selected pretrained model: ", value);
-}
 
 function ShowDialog() {
     showModelDialog.value = true;

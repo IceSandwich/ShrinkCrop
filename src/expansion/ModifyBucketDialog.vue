@@ -1,6 +1,6 @@
 ﻿<script setup lang="ts">
 import { useTemplateRef } from 'vue';
-import BucketDialog from './BucketDialog.vue';
+import BucketDialog from '../dialogs/BucketDialog.vue';
 
 const emits = defineEmits<{
 	OnApply: [width: number, height: number],

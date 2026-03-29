@@ -1,10 +1,12 @@
 ﻿<script lang="ts" setup>
-import type { Bucket, ImageItem, Rect } from '@/utils/Types';
+import type { Rect } from '@/utils/Types';
 import { onMounted, onUnmounted, useTemplateRef } from 'vue';
 import { CalcHeightWithRatio, CalcRatio, CalcWidthWidthRatio, Clamp } from '@/utils/Functions';
+import type { ImageItem, ProjectV1Bucket } from '@/utils/Project';
 const props = defineProps<{
-	buckets: Map<string, Bucket>,
+	buckets: Map<string, ProjectV1Bucket>,
 }>();
+
 const emits = defineEmits<{
 	OnChangedCropIndex: [id: number],
 	OnUpdate: [id: number, rect: Rect],
@@ -150,7 +152,7 @@ function Redraw() {
 	ctx.restore();
 }
 
-function OnResize() {
+function Resize() {
 	canvas.value!.width = viewport.value!.clientWidth;
 	canvas.value!.height = viewport.value!.clientHeight;
 	Redraw();
@@ -354,7 +356,7 @@ function onMouseLeave() {
 }
 
 onMounted(() => {
-	window.addEventListener("resize", OnResize);
+	window.addEventListener("resize", Resize);
 	if (canvas.value) {
 		canvas.value!.addEventListener("wheel", onWheel);
 		canvas.value!.addEventListener("mousedown", onMouseDown);
@@ -366,7 +368,7 @@ onMounted(() => {
 	}
 });
 onUnmounted(() => {
-	window.removeEventListener("resize", OnResize);
+	window.removeEventListener("resize", Resize);
 	if (canvas.value) {
 		canvas.value!.removeEventListener("wheel", onWheel);
 		canvas.value!.removeEventListener("mousedown", onMouseDown);
@@ -377,6 +379,7 @@ onUnmounted(() => {
 		ctx = null;
 	}
 })
+
 
 function SetImage(img: ImageItem, cropId: number = -1) {
 	imgItem = img;
@@ -398,7 +401,7 @@ function SetImage(img: ImageItem, cropId: number = -1) {
 
 defineExpose({
 	SetImage,
-	OnResize,
+	Resize,
 	Redraw,
 })
 </script>

@@ -1,68 +1,18 @@
 <script setup lang="ts">
-import BucketDialog from './BucketDialog.vue';
+import BucketDialog from '../dialogs/BucketDialog.vue';
 import ModifyBucketDialog from './ModifyBucketDialog.vue';
 import { CalcRatio, MaxRectWithRatio } from '@/utils/Functions';
-import type { Bucket, CropRect } from '@/utils/Types';
+import type { ProjectV1Bucket, ProjectV1CropRect } from '@/utils/Project';
 import { useTemplateRef } from 'vue';
+
 const props = defineProps<{
-	crop: CropRect,
-	buckets: Map<string, Bucket>,
+	crop: ProjectV1CropRect,
+	buckets: Map<string, ProjectV1Bucket>,
 }>();
+
 const emits = defineEmits<{
 	OnBucketUpdate: [key: string],
 }>();
-
-/*
-const addConfigTargetWidth = shallowRef(0);
-const addConfigTargetHeight = shallowRef(0);
-const addConfigKeepRatioCheckbox = shallowRef(true);
-const addConfigRatio = shallowRef(0);
-const bucketDialog = shallowRef(false);
-
-function onAddBucketClicked() {
-	console.log(props.crop);
-	addConfigTargetWidth.value = props.crop.width;
-	addConfigTargetHeight.value = props.crop.height;
-	onKeepRatioCheckboxChanged(true);
-	addConfigKeepRatioCheckbox.value = true;
-	bucketDialog.value = true;
-}
-
-function onKeepRatioCheckboxChanged(value: boolean | null) {
-	if (value) {
-		addConfigRatio.value = CalcRatio(addConfigTargetWidth.value, addConfigTargetHeight.value);
-	}
-}
-
-function onAddConfigTargetWidthChanged(val: boolean) {
-	if (addConfigKeepRatioCheckbox.value == true) {
-		addConfigTargetHeight.value = CalcHeightWithRatio(addConfigTargetWidth.value, addConfigRatio.value);
-	}
-}
-
-
-function onAddConfigTargetHeightChanged(val: boolean) {
-	if (addConfigKeepRatioCheckbox.value == true) {
-		addConfigTargetWidth.value = CalcWidthWidthRatio(addConfigTargetHeight.value, addConfigRatio.value);
-	}
-}
-
-function onAddConfigApplyClicked() {
-	const bucketID = window.crypto.randomUUID().toString();
-	const ratio = CalcRatio(addConfigTargetWidth.value, addConfigTargetHeight.value);
-	props.buckets.set(bucketID, {
-		width: addConfigTargetWidth.value,
-		height: addConfigTargetHeight.value,
-		ratio: ratio,
-	});
-	props.crop.bucket = bucketID;
-	const newSize = MaxRectWithRatio(props.crop.width, props.crop.height, ratio);
-	props.crop.width = newSize.width;
-	props.crop.height = newSize.height;
-	emits("OnBucketUpdate", bucketID);
-
-	bucketDialog.value = false;
-}*/
 
 const addBucketDialog = useTemplateRef("addBucketDialog");
 function onAddBucketClicked() {
@@ -91,6 +41,7 @@ function onModifyBucketClicked() {
 		modifyBucketDialog.value?.OpenDialog(bucket.width, bucket.height);
 	}
 }
+
 function onModifyBucketApply(width: number, height: number) {
 	const bucket = props.buckets.get(props.crop.bucket);
 	if (bucket) {
@@ -124,7 +75,7 @@ function onRadioChanged(v: string | null) {
 	}
 }
 
-function formatBucket(bucket: Bucket) {
+function formatBucket(bucket: ProjectV1Bucket) {
 	return `${bucket.width} x ${bucket.height}, ${bucket.ratio.toFixed(2)}`;
 }
 </script>
@@ -139,7 +90,7 @@ function formatBucket(bucket: Bucket) {
 				<VRadioGroup v-model="crop.bucket" @update:model-value="onRadioChanged">
 					<VRadio v-for="(item, i) in buckets" :value="item[0]">
 						<template v-slot:label>
-							{{  formatBucket(item[1]) }}
+							{{ formatBucket(item[1]) }}
 						</template>
 					</VRadio>
 					<VRadio value="">
@@ -150,16 +101,14 @@ function formatBucket(bucket: Bucket) {
 				</VRadioGroup>
 			</VRow>
 			<VRow>
-				<VBtn color="indigo-darken-3" size="large" prepend-icon="mdi-bookmark-plus-outline" class="w-100" @click="onAddBucketClicked">添加</VBtn>
-				<BucketDialog dialog-title="添加桶" button-text="添加" @on-apply="onAddBucketApply" ref="addBucketDialog"></BucketDialog>
-				<!-- <VBtn color="cyan-darken-3" size="large" prepend-icon="mdi-pen" class="w-100 mt-3" v-if="crop.bucket !== ''" @click="onModifyBucketClicked">修改</VBtn> -->
+				<VBtn color="indigo-darken-3" size="large" prepend-icon="mdi-bookmark-plus-outline" class="w-100"
+					@click="onAddBucketClicked">添加</VBtn>
+				<BucketDialog dialog-title="添加桶" button-text="添加" @on-apply="onAddBucketApply" ref="addBucketDialog">
+				</BucketDialog>
 				<ModifyBucketDialog ref="modifyBucketDialog" @on-apply="onModifyBucketApply"></ModifyBucketDialog>
-				<!-- <VBtn color="purple-darken-3" size="large" prepend-icon="mdi-crop" class="w-100 mt-3" v-if="crop.bucket !== ''" @click="onSetSameSizeClicked">设置裁剪跟桶一样</VBtn> -->
 			</VRow>
 		</VExpansionPanelText>
 	</VExpansionPanel>
 </template>
 
-<style lang="css" scoped>
-
-</style>
+<style lang="css" scoped></style>
