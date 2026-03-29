@@ -24,9 +24,8 @@ export interface Bucket {
 }
 
 export interface ProjectImageData {
-	// record source path may be the data will be used in other programs
-	// we use md5 to match 2 images instead of filename
 	filename: string;
+	srcfilename: string;
 
 	md5: string;
 	crops: CropRectWithTags[];

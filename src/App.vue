@@ -39,9 +39,10 @@ function onImportClicked() {
 				selectedTags: [],
 			}];
 			images.value.push({
+				filename: v.filename,
+				srcfilename: v.filename,
 				md5: await CalculateImageMD5(v.url),
 				imgurl: v.url,
-				filename: v.filename,
 				width: v.img.naturalWidth,
 				height: v.img.naturalHeight,
 				crops: crops,
@@ -59,8 +60,8 @@ function onImportClicked() {
 
 function onImportProjectClicked() {
 	OpenFileDialog("application/json", false, async function (filelist) {
-		const filenameToIndex = new Map<string, number>();
-		images.value.forEach((v, i) => filenameToIndex.set(v.filename, i));
+		const md5ToIndex = new Map<string, number>();
+		images.value.forEach((v, i) => md5ToIndex.set(v.md5, i));
 
 		const jsonData = await ReadAsJson<Project>(filelist[0]);
 		if (jsonData.metadata.version !== 1) {
@@ -72,22 +73,24 @@ function onImportProjectClicked() {
 		}
 
 		let missingFiles: string[] = [];
-		for (const [key, value] of Object.entries(jsonData.files)) {
-			const index = filenameToIndex.get(key);
-			if (index) {
-				images.value[index].crops = value.crops;
-				images.value[index].cachedHasCrop = HasBucket(images.value[index]);
-				if (images.value[index].cachedHasCrop) {
-					images.value[index].cachedHasUpscale = HasUpscale(images.value[index], buckets);
+		for (const value of jsonData.files) {
+			if (md5ToIndex.has(value.md5)) {
+				const img = images.value[md5ToIndex.get(value.md5)!];
+				img.crops = value.crops;
+				img.cachedHasCrop = HasBucket(img);
+				if (img.cachedHasCrop) {
+					img.cachedHasUpscale = HasUpscale(img, buckets);
 				}
 			} else {
-				missingFiles.push(key);
+				missingFiles.push(value.srcfilename);
 			}
 		}
 
 		cleanUselessBuckets();
 
-		// TODO: print missing files
+		if (missingFiles.length > 0) {
+			alert(`The following files are missing: \n${missingFiles.join('\n')}`);
+		}
 	});
 }
 
@@ -171,6 +174,7 @@ async function onExportClicked() {
 		const name = `img${j}`;
 		prjfiles.push({
 			filename: name,
+			srcfilename: v.filename,
 			md5: v.md5,
 			crops: [{
 				bucket: usedBucket,
