@@ -2,7 +2,7 @@ import { computed, ref, type ComputedRef, type Ref } from "vue";
 import type { ImageInstance } from "./FileSystem";
 import { CalculateDefaultCrop, CalculateImageMD5, PicaCropResize, TxtAsBlob } from "./Functions";
 import type { Rect } from "./Types";
-import { GetSavedCategoryCopy } from "./TagModel";
+import { GetSavedCategoryCopy, TagPool } from "./TagModel";
 
 export interface ProjectV1CropRect extends Rect {
     bucket: string;
@@ -11,7 +11,7 @@ export interface ProjectV1CropRect extends Rect {
 }
 
 export interface ProjectV1File {
-    srcfilename: string;
+    src: string;
     name: string;
     md5: string;
 
@@ -116,10 +116,17 @@ export class ProjectManager {
 				const img = this.images.value[md5ToIndex.get(value.md5)!];
 				img.crops = value.crops;
 			} else {
-				missingFiles.push(value.srcfilename);
+				missingFiles.push(value.src);
 			}
 		}
         this.CleanUselessBuckets();
+
+        json.files.forEach(v => {
+            v.crops.forEach(c => {
+                TagPool.value.push(...c.tags);
+            })
+        })
+
         return missingFiles;
     }
 
@@ -169,6 +176,11 @@ export class ProjectManager {
             files: [],
             buckets: Object.fromEntries(this.buckets.value.entries()),
         }
+        const unwanted = new Set<string>();
+        const savedCat = GetSavedCategoryCopy();
+        if (savedCat != null) {
+            savedCat.unwanted.forEach(v => unwanted.add(v.name));
+        }
 
         let zipfile = new Map<string, string | Blob>();
         for (var j = 0; j < this.images.value.length; j++) {
@@ -186,15 +198,16 @@ export class ProjectManager {
 
             const name = `img${j}`;
             prj.files.push({
-                srcfilename: v.srcfilename,
+                src: v.srcfilename,
                 name: name,
                 md5: v.md5,
                 crops: v.crops,
             }) - 1
             
-            const croped = await PicaCropResize(v.imgurl, crop.x, crop.y, crop.width, crop.height, crop.width, crop.height);
+            const croped = await PicaCropResize(v.imgurl, crop.x, crop.y, crop.width, crop.height, tw, th);
             zipfile.set(`captions/${name}.png`, croped);
 
+            crop.selected_tags = crop.selected_tags.filter(v => !unwanted.has(v));
             const txt = TxtAsBlob(crop.selected_tags.join(", "));
             zipfile.set(`captions/${name}.txt`, txt);
         }

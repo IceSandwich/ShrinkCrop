@@ -8,7 +8,8 @@ import { TagModelInstance } from '@/utils/TagModel';
 import { AppProject } from './Shared';
 
 const emit = defineEmits<{
-    OnImportedImages: []
+    OnImportedImages: [],
+    OnImportedProject: [],
 }>();
 
 function onImportClicked() {
@@ -28,6 +29,7 @@ function onImportProjectClicked() {
         if (missingFiles.length > 0) {
             alert(`The following files are missing: \n${missingFiles.join('\n')}`);
         }
+        emit('OnImportedProject');
     });
 }
 

@@ -68,7 +68,7 @@ onUnmounted(async () => {
 
 <template>
 	<VApp theme="PurpleTheme">
-		<AppBar @on-imported-images="onImportedImages">
+		<AppBar @on-imported-images="onImportedImages" @on-imported-project="cropper?.Redraw()">
 			<template v-slot:status>
 				<VToolbarItems variant="plain" class="mr-4">
 					<VLabel>
